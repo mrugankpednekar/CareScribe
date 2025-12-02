@@ -25,7 +25,7 @@ export default function Documents() {
         {docs.map((doc, i) => (
           <div key={i} className="bg-card border border-border/50 p-4 rounded-xl flex items-center justify-between hover:shadow-sm transition-shadow group">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-red-50 text-red-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-muted text-muted-foreground rounded-lg flex items-center justify-center">
                 <FileText className="w-5 h-5" />
               </div>
               <div>
@@ -43,7 +43,7 @@ export default function Documents() {
       <div className="mt-8 p-6 bg-secondary/30 rounded-2xl border border-dashed border-border text-center">
         <h3 className="font-bold text-foreground mb-2">Export History</h3>
         <p className="text-sm text-muted-foreground mb-4">Download your full medical timeline for a new doctor.</p>
-        <button className="px-6 py-2 bg-white border border-border/50 rounded-lg text-sm font-medium shadow-sm hover:bg-gray-50 transition-colors">
+        <button className="px-6 py-2 bg-card border border-border/50 rounded-lg text-sm font-medium shadow-sm hover:bg-secondary transition-colors">
           Generate Full Report
         </button>
       </div>

@@ -27,8 +27,8 @@ export default function Dashboard() {
       {/* Quick Action - Record */}
       <Link href="/record">
         <a className="block mb-10 group">
-          <div className="bg-gradient-to-br from-primary to-[#95B1EE]/80 rounded-2xl p-6 md:p-8 text-foreground shadow-lg shadow-primary/30 transition-transform transform group-hover:scale-[1.01] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <div className="bg-primary rounded-2xl p-6 md:p-8 text-foreground shadow-lg shadow-primary/30 transition-transform transform group-hover:scale-[1.01] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-black/5 rounded-full -mr-16 -mt-16 blur-3xl" />
             
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
@@ -37,7 +37,7 @@ export default function Dashboard() {
                   Tap here to start recording. CareScribe will listen, transcribe, and organize your doctor's instructions automatically.
                 </p>
               </div>
-              <div className="w-16 h-16 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center self-start md:self-center group-hover:bg-white/40 transition-colors">
+              <div className="w-16 h-16 bg-black/10 backdrop-blur-sm rounded-full flex items-center justify-center self-start md:self-center group-hover:bg-black/20 transition-colors">
                 <Mic className="w-8 h-8" />
               </div>
             </div>
@@ -50,7 +50,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">Today's Plan</h2>
-            <span className="text-sm font-medium text-primary bg-primary/20 px-3 py-1 rounded-full">
+            <span className="text-sm font-medium text-foreground bg-secondary px-3 py-1 rounded-full">
               {mockTasks.filter(t => !t.completed).length} Remaining
             </span>
           </div>
@@ -81,7 +81,7 @@ export default function Dashboard() {
 
           {/* Quick Add */}
           <div className="pt-4">
-             <button className="w-full py-3 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors font-medium">
+             <button className="w-full py-3 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-foreground hover:text-foreground transition-colors font-medium">
                <Plus className="w-5 h-5" />
                Add Past Record
              </button>

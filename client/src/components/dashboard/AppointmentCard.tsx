@@ -25,7 +25,7 @@ export function AppointmentCard({ appointment, compact = false }: AppointmentCar
           </div>
           <div className={cn(
             "px-2.5 py-1 rounded-full text-xs font-semibold capitalize border",
-            appointment.status === "completed" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+            appointment.status === "completed" ? "bg-gray-100 text-gray-700 border-gray-200" :
             appointment.status === "upcoming" ? "bg-primary/20 text-primary border-primary/20" :
             "bg-yellow-50 text-yellow-700 border-yellow-100"
           )}>
@@ -35,11 +35,11 @@ export function AppointmentCard({ appointment, compact = false }: AppointmentCar
 
         <div className="flex items-center gap-4 text-sm text-muted-foreground mt-3">
           <div className="flex items-center gap-1.5 bg-secondary/50 px-2 py-1 rounded-md">
-            <CalendarDays className="w-4 h-4 text-primary" />
+            <CalendarDays className="w-4 h-4 text-foreground" />
             <span>{date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
           </div>
           <div className="flex items-center gap-1.5 bg-secondary/50 px-2 py-1 rounded-md">
-            <Clock className="w-4 h-4 text-primary" />
+            <Clock className="w-4 h-4 text-foreground" />
             <span>{date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           </div>
         </div>
