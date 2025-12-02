@@ -43,7 +43,7 @@ export default function Dashboard() {
     <Layout>
       {/* Header */}
       <header className="mb-12">
-        <p className="text-muted-foreground text-base font-medium">{greeting}, Alex</p>
+        <p className="text-foreground text-lg font-semibold">{greeting}, Alex</p>
       </header>
 
       {/* Quick Action - Record */}
