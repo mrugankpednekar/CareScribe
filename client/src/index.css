@@ -38,7 +38,7 @@
 
 :root {
   /* Minimal color palette */
-  --background: 40 100% 96%; /* Light off-white */
+  --background: 0 0% 94%; /* Light gray instead of FFFDF5 */
   --foreground: 0 0% 15%; /* Nearly black */
 
   --card: 0 0% 92%; /* Light gray-white */

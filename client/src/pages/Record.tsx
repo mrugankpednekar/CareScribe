@@ -78,8 +78,8 @@ export default function Record() {
         {status === "recording" && (
           <div className="w-full space-y-8 animate-in fade-in">
             <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-red-100 text-red-600 text-sm font-medium mb-8">
-                <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium mb-8">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 Recording Live
               </div>
               <VoiceVisualizer isRecording={true} />
@@ -102,7 +102,7 @@ export default function Record() {
             <div className="flex justify-center">
               <button 
                 onClick={handleToggleRecord}
-                className="bg-red-600 hover:bg-red-700 text-white rounded-full p-6 shadow-lg transition-all hover:scale-105 active:scale-95"
+                className="bg-foreground hover:bg-foreground/90 text-background rounded-full p-6 shadow-lg transition-all hover:scale-105 active:scale-95"
               >
                 <Square className="w-8 h-8 fill-current" />
               </button>
@@ -122,7 +122,7 @@ export default function Record() {
 
         {status === "done" && (
           <div className="text-center space-y-8 animate-in fade-in zoom-in">
-            <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-600">
+            <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto text-primary">
               <CheckCircle2 className="w-12 h-12" />
             </div>
             <div>

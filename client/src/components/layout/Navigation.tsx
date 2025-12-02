@@ -43,10 +43,10 @@ export function Navigation() {
         </div>
 
         <div className="mt-auto">
-           <div className="p-4 bg-secondary/50 rounded-xl mb-4">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Next Appointment</p>
+           <div className="p-4 bg-primary rounded-xl mb-4 text-foreground">
+              <p className="text-xs font-medium text-foreground/80 mb-1">Next Appointment</p>
               <p className="text-sm font-semibold text-foreground">Dr. Emily White</p>
-              <p className="text-xs text-primary font-medium">Jun 20 • 9:00 AM</p>
+              <p className="text-xs text-foreground/90 font-medium">Jun 20 • 9:00 AM</p>
            </div>
            <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-secondary/50 hover:text-foreground w-full font-medium">
              <User className="w-5 h-5" />
