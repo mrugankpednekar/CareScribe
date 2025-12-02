@@ -6,8 +6,10 @@ import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
 // Import illustrations (transparent PNG versions)
+const recordingIllustration = new URL('@assets/image_1764639118210.png', import.meta.url).href;
 const tasksIllustration = new URL('@assets/image_1764639012729.png', import.meta.url).href;
 const medicationsIllustration = new URL('@assets/image_1764639028767.png', import.meta.url).href;
+const historyIllustration = new URL('@assets/image_1764639172491.png', import.meta.url).href;
 
 export default function Dashboard() {
   const today = new Date();
@@ -88,8 +90,10 @@ export default function Dashboard() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {[
+            { img: recordingIllustration, title: "Record & Transcribe", desc: "Capture your appointments with AI. We'll transcribe everything and organize diagnoses, medications, and instructions automatically." },
             { img: tasksIllustration, title: "Daily Tasks & Reminders", desc: "Never miss a medication, appointment, or follow-up. Get organized reminders for everything from your health plan." },
             { img: medicationsIllustration, title: "Medication Tracking", desc: "Keep all your prescriptions in one place. Track doses, refills, and side effects with gentle reminders." },
+            { img: historyIllustration, title: "Track Medical History", desc: "Build your complete health story in one place. Search past visits, symptoms, and treatments anytime you need them." },
           ].map((feature, i) => (
             <div key={i} className="bg-card rounded-lg p-8 border border-border hover:border-muted transition-colors flex flex-col items-center md:items-start text-center md:text-left">
               <div className="w-full h-56 mb-6 flex items-center justify-center">
