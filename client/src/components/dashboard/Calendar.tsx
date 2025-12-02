@@ -128,16 +128,27 @@ export function Calendar({ tasks }: CalendarProps) {
               </span>
               {dayTasks.length > 0 && (
                 <div className="flex gap-1 mt-1 flex-wrap">
-                  {dayTasks.slice(0, 2).map(task => {
+                  {dayTasks.slice(0, 3).map(task => {
                     const IconComponent = getTaskIcon(task.type);
+                    const typeColors: Record<string, string> = {
+                      medication: "bg-primary/20 text-primary",
+                      appointment: "bg-secondary/20 text-secondary",
+                      lab: "bg-blue-500/20 text-blue-600",
+                      exercise: "bg-green-500/20 text-green-600",
+                    };
+                    const color = typeColors[task.type] || "bg-muted text-muted-foreground";
                     return (
-                      <div key={task.id} className="w-3 h-3 rounded-full bg-secondary flex items-center justify-center" title={task.title}>
-                        {/* Dot indicator */}
+                      <div 
+                        key={task.id} 
+                        className={cn("w-5 h-5 rounded-full flex items-center justify-center", color)} 
+                        title={task.title}
+                      >
+                        <IconComponent className="w-2.5 h-2.5" />
                       </div>
                     );
                   })}
-                  {dayTasks.length > 2 && (
-                    <span className="text-xs text-muted-foreground">+{dayTasks.length - 2}</span>
+                  {dayTasks.length > 3 && (
+                    <span className="text-xs text-muted-foreground font-semibold">+{dayTasks.length - 3}</span>
                   )}
                 </div>
               )}
@@ -161,18 +172,47 @@ export function Calendar({ tasks }: CalendarProps) {
             <div className="space-y-2">
               {getTasksForDate(new Date(expandedDate + "T00:00:00")).map(task => {
                 const IconComponent = getTaskIcon(task.type);
+                
+                const typeStyles: Record<string, { bg: string; text: string; label: string }> = {
+                  medication: { 
+                    bg: "bg-primary/10", 
+                    text: "text-primary", 
+                    label: "💊 Medication" 
+                  },
+                  appointment: { 
+                    bg: "bg-secondary/10", 
+                    text: "text-secondary", 
+                    label: "🏥 Appointment" 
+                  },
+                  lab: { 
+                    bg: "bg-blue-500/10", 
+                    text: "text-blue-600", 
+                    label: "🧪 Lab Test" 
+                  },
+                  exercise: { 
+                    bg: "bg-green-500/10", 
+                    text: "text-green-600", 
+                    label: "💪 Activity" 
+                  },
+                };
+                
+                const style = typeStyles[task.type] || { bg: "bg-muted", text: "text-foreground", label: "Task" };
+                
                 return (
                   <div
                     key={task.id}
-                    className="flex gap-3 p-3 rounded-lg bg-muted hover:bg-muted/70 transition-colors"
+                    className={cn("flex gap-3 p-4 rounded-lg border border-border hover:border-muted transition-all", style.bg)}
                   >
-                    <div className="w-8 h-8 rounded-full bg-secondary text-white flex items-center justify-center flex-shrink-0">
-                      <IconComponent className="w-4 h-4" />
+                    <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0", style.bg, style.text)}>
+                      <IconComponent className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
+                      <p className={cn("text-xs font-semibold uppercase mb-1", style.text)}>
+                        {style.label}
+                      </p>
                       <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
                       {task.time && (
-                        <p className="text-xs text-muted-foreground">{task.time}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{task.time}</p>
                       )}
                     </div>
                   </div>
