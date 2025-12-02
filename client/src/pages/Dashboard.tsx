@@ -5,7 +5,8 @@ import { mockAppointments, mockTasks } from "@/lib/mockData";
 import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
-// Import illustrations
+// Import illustrations (transparent PNG versions)
+const wellnessHeroIllustration = new URL('@assets/image_1764638766172.png', import.meta.url).href;
 const recordingIllustration = new URL('@assets/image_1764638376626.png', import.meta.url).href;
 const tasksIllustration = new URL('@assets/image_1764638415508.png', import.meta.url).href;
 const wellnessIllustration = new URL('@assets/image_1764638578570.png', import.meta.url).href;
@@ -21,10 +22,28 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      {/* Header */}
+      {/* Header with Illustration */}
       <header className="mb-12">
         <p className="text-muted-foreground text-sm font-medium mb-2">{greeting}, Alex</p>
-        <h1 className="text-4xl md:text-5xl font-bold text-foreground">Your Health</h1>
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+          <div>
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground">Your Health</h1>
+          </div>
+          <div className="hidden md:block w-48 h-48 flex-shrink-0">
+            <img 
+              src={wellnessHeroIllustration} 
+              alt="Patient wellness journey" 
+              className="w-full h-full object-contain"
+            />
+          </div>
+        </div>
+        <div className="md:hidden w-40 h-40 mx-auto mt-4">
+          <img 
+            src={wellnessHeroIllustration} 
+            alt="Patient wellness journey" 
+            className="w-full h-full object-contain"
+          />
+        </div>
       </header>
 
       {/* Quick Action - Record */}
