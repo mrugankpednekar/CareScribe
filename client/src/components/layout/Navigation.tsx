@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Home, Calendar, Mic, MessageSquare, FileText, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const logoUrl = new URL('@assets/Screenshot 2025-12-01 at 9.20.09 PM_1764642013978.png', import.meta.url).href;
+const logoUrl = new URL('@assets/WhatsApp Image 2025-12-01 at 21.17.50_1764642244466.jpeg', import.meta.url).href;
 
 export function Navigation() {
   const [location] = useLocation();
