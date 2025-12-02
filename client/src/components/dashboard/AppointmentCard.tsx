@@ -18,7 +18,7 @@ export function AppointmentCard({ appointment, compact = false }: AppointmentCar
       <div className="p-4 pl-5">
         <div className="flex justify-between items-start mb-2">
           <div>
-            <h3 className="font-bold text-foreground">
+            <h3 className="font-bold text-sm text-foreground">
               {appointment.doctor}
             </h3>
             <p className="text-xs text-muted-foreground">{appointment.specialty}</p>

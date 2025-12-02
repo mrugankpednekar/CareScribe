@@ -38,7 +38,7 @@ export function TaskCard({ task }: TaskCardProps) {
       
       <div className="flex-1 min-w-0">
         <p className={cn(
-          "font-medium text-sm truncate",
+          "font-medium text-base truncate",
           checked ? "text-muted-foreground line-through" : "text-foreground"
         )}>
           {task.title}
