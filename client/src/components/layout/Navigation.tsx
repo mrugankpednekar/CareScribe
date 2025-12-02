@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Home, Calendar, Mic, MessageSquare, FileText, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const logoUrl = new URL('@assets/WhatsApp Image 2025-12-01 at 21.17.50_1764642244466.jpeg', import.meta.url).href;
+const logoUrl = new URL('@assets/image_1764643068482.png', import.meta.url).href;
 
 export function Navigation() {
   const [location] = useLocation();
@@ -20,10 +20,7 @@ export function Navigation() {
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
         <div className="mb-10">
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-3">
-            <img src={logoUrl} alt="CareScribe" className="w-10 h-10 flex-shrink-0" />
-            CareScribe
-          </h1>
+          <img src={logoUrl} alt="CareScribe" className="h-12 flex-shrink-0" />
         </div>
         
         <div className="flex flex-col gap-1">
