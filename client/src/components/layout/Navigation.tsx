@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
 import { Home, Calendar, Mic, MessageSquare, FileText, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-import logoUrl from "@/assets/carescribe-logo.svg";
+
+const logoUrl = new URL('@assets/Screenshot 2025-12-01 at 9.20.09 PM_1764642013978.png', import.meta.url).href;
 
 export function Navigation() {
   const [location] = useLocation();
@@ -20,9 +21,7 @@ export function Navigation() {
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-primary flex items-center gap-3">
-            <div className="w-12 h-12 flex-shrink-0 overflow-visible">
-              <img src={logoUrl} alt="CareScribe" className="w-full h-full" />
-            </div>
+            <img src={logoUrl} alt="CareScribe" className="w-10 h-10 flex-shrink-0" />
             CareScribe
           </h1>
         </div>
