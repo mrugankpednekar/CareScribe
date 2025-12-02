@@ -22,32 +22,49 @@ export function TaskCard({ task }: TaskCardProps) {
   };
 
   const Icon = getIcon();
+  const typeLabel = {
+    medication: "Medication",
+    appointment: "Appointment",
+    lab: "Lab",
+    exercise: "Exercise"
+  }[task.type];
 
   return (
     <div className={cn(
-      "flex items-center gap-4 p-4 rounded-xl border transition-all duration-300 group cursor-pointer hover:shadow-md",
+      "flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-300 group cursor-pointer hover:shadow-md",
       checked 
-        ? "bg-gradient-to-r from-success/20 to-success/10 border-success/30" 
-        : "bg-card border-border/50 hover:border-success/40 hover:bg-gradient-to-r hover:from-card hover:to-success/5"
+        ? "bg-gradient-to-r from-success/20 to-success/10 border-success/40" 
+        : "bg-card border-border hover:border-primary/40 hover:bg-gradient-to-r hover:from-card hover:to-primary/5"
     )}>
       <div className="relative flex items-center justify-center flex-shrink-0">
         <Checkbox 
           checked={checked} 
           onCheckedChange={(c) => setChecked(!!c)}
-          className="w-6 h-6 rounded-full border-2 transition-all data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-primary data-[state=checked]:to-success data-[state=checked]:border-success"
+          className="w-6 h-6 rounded-lg border-2 transition-all data-[state=checked]:bg-gradient-to-br data-[state=checked]:from-success data-[state=checked]:to-success data-[state=checked]:border-success text-background"
         />
       </div>
       
       <div className="flex-1 min-w-0">
-        <p className={cn(
-          "font-bold text-sm truncate transition-all",
-          checked ? "text-muted-foreground line-through" : "text-foreground group-hover:text-primary"
-        )}>
-          {task.title}
-        </p>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-          <Icon className="w-3 h-3 text-success" />
-          <span>{task.due}</span>
+        <div className="flex items-center gap-2">
+          <p className={cn(
+            "font-bold text-sm truncate transition-all",
+            checked ? "text-muted-foreground line-through" : "text-foreground group-hover:text-primary"
+          )}>
+            {task.title}
+          </p>
+          <span className={cn(
+            "text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0",
+            task.type === "medication" ? "bg-primary/10 text-primary" :
+            task.type === "appointment" ? "bg-secondary/10 text-secondary" :
+            task.type === "lab" ? "bg-success/10 text-success" :
+            "bg-destructive/10 text-destructive"
+          )}>
+            {typeLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+          <Icon className="w-3.5 h-3.5" />
+          <span className="font-medium">{task.due}</span>
         </div>
       </div>
     </div>
