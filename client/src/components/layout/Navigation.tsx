@@ -19,8 +19,8 @@ export function Navigation() {
     <>
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
-        <div className="mb-10">
-          <img src={logoUrl} alt="CareScribe" className="h-24 w-full object-contain object-left" />
+        <div className="mb-12">
+          <img src={logoUrl} alt="CareScribe" className="h-32 w-full object-contain object-left" />
         </div>
         
         <div className="flex flex-col gap-1">
