@@ -66,49 +66,49 @@ export default function Dashboard() {
         </a>
       </Link>
 
-      {/* Calendar and Tasks */}
+      {/* Calendar and Today's Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-12">
         {/* Calendar */}
         <div className="lg:col-span-2">
           <Calendar tasks={calendarTasks} />
         </div>
 
-        {/* Recent Visits */}
+        {/* Today's Tasks */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-foreground">Recent Visits</h2>
-            <Link href="/history">
-              <a className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
-                All <ChevronRight className="w-4 h-4" />
-              </a>
-            </Link>
+          <div>
+            <h2 className="text-2xl font-bold text-foreground mb-1">Today's Tasks</h2>
+            <p className="text-muted-foreground text-sm">{completedCount} of {totalCount} completed</p>
           </div>
-
-          <div className="space-y-3">
-            {mockAppointments.slice(0, 2).map(apt => (
-              <AppointmentCard key={apt.id} appointment={apt} compact />
+          
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            {mockTasks.map(task => (
+              <TaskCard key={task.id} task={task} />
             ))}
           </div>
-
-          <button className="w-full py-3 border-2 border-dashed border-muted rounded-lg flex items-center justify-center gap-2 text-foreground hover:border-primary hover:bg-primary/5 transition-all font-semibold">
-            <Plus className="w-5 h-5" />
-            Add Record
-          </button>
         </div>
       </div>
 
-      {/* Today's Tasks */}
+      {/* Recent Visits */}
       <div className="mb-12">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground mb-1">Today's Tasks</h2>
-          <p className="text-muted-foreground text-sm mb-4">{completedCount} of {totalCount} completed</p>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-foreground">Recent Visits</h2>
+          <Link href="/history">
+            <a className="text-sm font-semibold text-primary hover:text-primary/80 flex items-center gap-1 transition-colors">
+              All <ChevronRight className="w-4 h-4" />
+            </a>
+          </Link>
         </div>
-        
-        <div className="space-y-3">
-          {mockTasks.map(task => (
-            <TaskCard key={task.id} task={task} />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {mockAppointments.slice(0, 4).map(apt => (
+            <AppointmentCard key={apt.id} appointment={apt} compact />
           ))}
         </div>
+
+        <button className="w-full mt-4 py-3 border-2 border-dashed border-muted rounded-lg flex items-center justify-center gap-2 text-foreground hover:border-primary hover:bg-primary/5 transition-all font-semibold">
+          <Plus className="w-5 h-5" />
+          Add Record
+        </button>
       </div>
 
       {/* Features Section */}
