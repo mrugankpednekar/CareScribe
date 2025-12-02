@@ -6,12 +6,8 @@ import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
 // Import illustrations (transparent PNG versions)
-const wellnessHeroIllustration = new URL('@assets/image_1764638766172.png', import.meta.url).href;
-const recordingIllustration = new URL('@assets/image_1764638376626.png', import.meta.url).href;
-const tasksIllustration = new URL('@assets/image_1764638415508.png', import.meta.url).href;
-const wellnessIllustration = new URL('@assets/image_1764638578570.png', import.meta.url).href;
-const medicationsIllustration = new URL('@assets/image_1764638616917.png', import.meta.url).href;
-const documentsIllustration = new URL('@assets/image_1764638627639.png', import.meta.url).href;
+const tasksIllustration = new URL('@assets/image_1764639012729.png', import.meta.url).href;
+const medicationsIllustration = new URL('@assets/image_1764639028767.png', import.meta.url).href;
 
 export default function Dashboard() {
   const today = new Date();
@@ -22,28 +18,10 @@ export default function Dashboard() {
 
   return (
     <Layout>
-      {/* Header with Illustration */}
+      {/* Header */}
       <header className="mb-12">
         <p className="text-muted-foreground text-sm font-medium mb-2">{greeting}, Alex</p>
-        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">Your Health</h1>
-          </div>
-          <div className="hidden md:block w-48 h-48 flex-shrink-0">
-            <img 
-              src={wellnessHeroIllustration} 
-              alt="Patient wellness journey" 
-              className="w-full h-full object-contain"
-            />
-          </div>
-        </div>
-        <div className="md:hidden w-40 h-40 mx-auto mt-4">
-          <img 
-            src={wellnessHeroIllustration} 
-            alt="Patient wellness journey" 
-            className="w-full h-full object-contain"
-          />
-        </div>
+        <h1 className="text-4xl md:text-5xl font-bold text-foreground">Your Health</h1>
       </header>
 
       {/* Quick Action - Record */}
@@ -108,22 +86,21 @@ export default function Dashboard() {
       <section className="mt-16 pt-12 border-t border-border">
         <h2 className="text-2xl font-bold text-foreground mb-8">What CareScribe Does</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {[
-            { img: recordingIllustration, title: "Record & Transcribe", desc: "AI captures your appointments" },
-            { img: tasksIllustration, title: "Daily Tasks", desc: "Organized reminders & follow-ups" },
-            { img: wellnessIllustration, title: "Health Progress", desc: "Track your wellness journey" },
-            { img: medicationsIllustration, title: "Medications", desc: "Never miss a dose" },
-            { img: documentsIllustration, title: "Export & Share", desc: "Get your records anytime" },
+            { img: tasksIllustration, title: "Daily Tasks & Reminders", desc: "Never miss a medication, appointment, or follow-up. Get organized reminders for everything from your health plan." },
+            { img: medicationsIllustration, title: "Medication Tracking", desc: "Keep all your prescriptions in one place. Track doses, refills, and side effects with gentle reminders." },
           ].map((feature, i) => (
-            <div key={i} className="bg-card rounded-lg p-6 text-center border border-border hover:border-muted transition-colors flex flex-col items-center">
-              <img 
-                src={feature.img} 
-                alt={feature.title} 
-                className="w-full h-40 object-contain mb-4"
-              />
-              <h3 className="font-bold text-foreground text-sm">{feature.title}</h3>
-              <p className="text-xs text-muted-foreground mt-1 leading-tight">{feature.desc}</p>
+            <div key={i} className="bg-card rounded-lg p-8 border border-border hover:border-muted transition-colors flex flex-col items-center md:items-start text-center md:text-left">
+              <div className="w-full h-56 mb-6 flex items-center justify-center">
+                <img 
+                  src={feature.img} 
+                  alt={feature.title} 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <h3 className="font-bold text-foreground text-lg">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{feature.desc}</p>
             </div>
           ))}
         </div>
