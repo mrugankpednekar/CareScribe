@@ -43,7 +43,7 @@ export function Navigation() {
         </div>
 
         <div className="mt-auto space-y-3">
-           <div className="p-4 bg-secondary rounded-lg">
+           <div className="p-4 bg-muted rounded-lg">
               <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Next Appointment</p>
               <p className="text-sm font-bold text-foreground">Dr. Emily White</p>
               <p className="text-xs text-muted-foreground mt-1">Jun 20 • 9:00 AM</p>

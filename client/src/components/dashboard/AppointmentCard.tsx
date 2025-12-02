@@ -25,9 +25,9 @@ export function AppointmentCard({ appointment, compact = false }: AppointmentCar
           </div>
           <span className={cn(
             "text-xs font-semibold px-2 py-1 rounded",
-            appointment.status === "completed" ? "bg-secondary text-muted-foreground" :
+            appointment.status === "completed" ? "bg-muted text-muted-foreground" :
             appointment.status === "upcoming" ? "bg-primary/10 text-primary" :
-            "bg-secondary text-muted-foreground"
+            "bg-muted text-muted-foreground"
           )}>
             {appointment.status}
           </span>
