@@ -2,6 +2,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import crypto from "crypto";
+
+// Polyfill for Node.js versions < 21.7.0 which miss crypto.hash
+if (!(crypto as any).hash) {
+  (crypto as any).hash = (algorithm: string, data: string | Buffer, outputEncoding: import("crypto").BinaryToTextEncoding) => {
+    const hash = crypto.createHash(algorithm);
+    hash.update(data);
+    return hash.digest(outputEncoding);
+  };
+}
 
 const app = express();
 const httpServer = createServer(app);
