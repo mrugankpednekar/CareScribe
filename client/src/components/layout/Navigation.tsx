@@ -19,9 +19,11 @@ export function Navigation() {
     <>
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
-        <div className="mb-12">
-          <img src={logoUrl} alt="CareScribe" className="h-32 w-full object-contain object-left" />
-        </div>
+        <Link href="/">
+          <a className="mb-8 block">
+            <img src={logoUrl} alt="CareScribe" className="h-14 w-auto" />
+          </a>
+        </Link>
         
         <div className="flex flex-col gap-1">
           {navItems.map((item) => (
