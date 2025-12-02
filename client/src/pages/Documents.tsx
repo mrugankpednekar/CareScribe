@@ -15,7 +15,7 @@ export default function Documents() {
           <h1 className="text-3xl font-bold text-foreground mb-2">Documents</h1>
           <p className="text-muted-foreground">Uploads and exported summaries.</p>
         </div>
-        <button className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-sm">
+        <button className="bg-primary text-foreground px-4 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-primary/90 transition-colors shadow-sm">
           <Upload className="w-4 h-4" />
           Upload
         </button>

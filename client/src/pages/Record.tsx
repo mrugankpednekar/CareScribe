@@ -56,7 +56,7 @@ export default function Record() {
         
         {status === "idle" && (
           <div className="text-center space-y-8 animate-in fade-in zoom-in duration-500">
-            <div className="bg-primary/10 w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6">
+            <div className="bg-primary/20 w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6">
               <Mic className="w-16 h-16 text-primary" />
             </div>
             <div>
@@ -68,7 +68,7 @@ export default function Record() {
             </div>
             <button 
               onClick={handleToggleRecord}
-              className="bg-primary hover:bg-teal-700 text-white text-lg font-bold py-4 px-12 rounded-full shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95"
+              className="bg-primary hover:bg-primary/90 text-foreground text-lg font-bold py-4 px-12 rounded-full shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95"
             >
               Start Recording
             </button>
@@ -102,7 +102,7 @@ export default function Record() {
             <div className="flex justify-center">
               <button 
                 onClick={handleToggleRecord}
-                className="bg-destructive hover:bg-red-600 text-white rounded-full p-6 shadow-lg transition-all hover:scale-105 active:scale-95"
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full p-6 shadow-lg transition-all hover:scale-105 active:scale-95"
               >
                 <Square className="w-8 h-8 fill-current" />
               </button>
@@ -134,13 +134,13 @@ export default function Record() {
             
             <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
               <Link href="/history">
-                <button className="w-full bg-primary text-primary-foreground py-3 rounded-xl font-bold shadow-lg hover:bg-primary/90 transition-colors">
+                <button className="w-full bg-primary text-foreground py-3 rounded-xl font-bold shadow-lg hover:bg-primary/90 transition-colors">
                   View Summary
                 </button>
               </Link>
               <button 
                 onClick={() => { setStatus("idle"); setTranscript([]); setIsRecording(false); }}
-                className="w-full bg-secondary text-secondary-foreground py-3 rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                className="w-full bg-secondary text-foreground py-3 rounded-xl font-medium hover:bg-secondary/80 transition-colors"
               >
                 Record Another
               </button>

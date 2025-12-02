@@ -5,6 +5,12 @@ import { mockAppointments, mockTasks } from "@/lib/mockData";
 import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
+// Import the mascot images
+const labTestImage = new URL('@assets/PHOTO-2025-12-01-19-51-30_1764636869315.jpg', import.meta.url).href;
+const todosImage = new URL('@assets/PHOTO-2025-12-01-19-51-32_1764636869316.jpg', import.meta.url).href;
+const aiFollowupsImage = new URL('@assets/PHOTO-2025-12-01-19-51-31 2_1764636869316.jpg', import.meta.url).href;
+const downloadImage = new URL('@assets/PHOTO-2025-12-01-19-51-31_1764636869316.jpg', import.meta.url).href;
+
 export default function Dashboard() {
   const today = new Date();
   const hour = today.getHours();
@@ -21,17 +27,17 @@ export default function Dashboard() {
       {/* Quick Action - Record */}
       <Link href="/record">
         <a className="block mb-10 group">
-          <div className="bg-gradient-to-br from-primary to-teal-600 rounded-2xl p-6 md:p-8 text-primary-foreground shadow-lg shadow-primary/20 transition-transform transform group-hover:scale-[1.01] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+          <div className="bg-gradient-to-br from-primary to-[#95B1EE]/80 rounded-2xl p-6 md:p-8 text-foreground shadow-lg shadow-primary/30 transition-transform transform group-hover:scale-[1.01] relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full -mr-16 -mt-16 blur-3xl" />
             
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div>
                 <h2 className="text-2xl font-bold mb-2">Have an appointment?</h2>
-                <p className="text-primary-foreground/80 max-w-md">
+                <p className="text-foreground/80 max-w-md">
                   Tap here to start recording. CareScribe will listen, transcribe, and organize your doctor's instructions automatically.
                 </p>
               </div>
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center self-start md:self-center group-hover:bg-white/30 transition-colors">
+              <div className="w-16 h-16 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center self-start md:self-center group-hover:bg-white/40 transition-colors">
                 <Mic className="w-8 h-8" />
               </div>
             </div>
@@ -44,7 +50,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">Today's Plan</h2>
-            <span className="text-sm font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">
+            <span className="text-sm font-medium text-primary bg-primary/20 px-3 py-1 rounded-full">
               {mockTasks.filter(t => !t.completed).length} Remaining
             </span>
           </div>
@@ -82,6 +88,41 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Features Section with Images */}
+      <section className="mt-16 pt-12 border-t border-border">
+        <h2 className="text-2xl font-bold text-foreground mb-8">How CareScribe Helps</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Lab Test Reminders */}
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+            <img src={labTestImage} alt="Lab Test Reminders" className="w-full h-40 object-contain mb-4" />
+            <h3 className="font-bold text-foreground">Lab Test Reminders</h3>
+            <p className="text-sm text-muted-foreground mt-2">Never miss an important test or follow-up.</p>
+          </div>
+
+          {/* Daily To-Dos */}
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+            <img src={todosImage} alt="Daily To-Dos" className="w-full h-40 object-contain mb-4" />
+            <h3 className="font-bold text-foreground">Daily To-Dos & Reminders</h3>
+            <p className="text-sm text-muted-foreground mt-2">Smart reminders for your medications and care.</p>
+          </div>
+
+          {/* AI Follow-ups */}
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+            <img src={aiFollowupsImage} alt="AI Follow-ups" className="w-full h-40 object-contain mb-4" />
+            <h3 className="font-bold text-foreground">AI Follow-ups & Answers</h3>
+            <p className="text-sm text-muted-foreground mt-2">Get instant answers about your health data.</p>
+          </div>
+
+          {/* Download Summary */}
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+            <img src={downloadImage} alt="Download Summary" className="w-full h-40 object-contain mb-4" />
+            <h3 className="font-bold text-foreground">Download Your Summary</h3>
+            <p className="text-sm text-muted-foreground mt-2">Export your health data anytime.</p>
+          </div>
+        </div>
+      </section>
     </Layout>
   );
 }

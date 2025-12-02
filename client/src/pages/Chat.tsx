@@ -44,14 +44,14 @@ export default function Chat() {
             )}>
               <div className={cn(
                 "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                msg.role === "user" ? "bg-secondary text-secondary-foreground" : "bg-primary text-primary-foreground"
+                msg.role === "user" ? "bg-secondary text-foreground" : "bg-primary text-foreground"
               )}>
                 {msg.role === "user" ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
               </div>
               <div className={cn(
                 "p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
                 msg.role === "user" 
-                  ? "bg-primary text-primary-foreground rounded-tr-none" 
+                  ? "bg-primary text-foreground rounded-tr-none" 
                   : "bg-white border border-border/50 text-foreground rounded-tl-none"
               )}>
                 {msg.content}
@@ -70,7 +70,7 @@ export default function Chat() {
           />
           <button 
             onClick={handleSend}
-            className="bg-primary text-primary-foreground w-12 h-12 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-colors shadow-sm"
+            className="bg-primary text-foreground w-12 h-12 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-colors shadow-sm"
           >
             <Send className="w-5 h-5" />
           </button>

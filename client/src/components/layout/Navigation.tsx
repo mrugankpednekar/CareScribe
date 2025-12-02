@@ -20,7 +20,7 @@ export function Navigation() {
         <div className="mb-8 px-4">
           <h1 className="text-2xl font-bold text-primary font-display flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <Mic className="text-primary-foreground w-5 h-5" />
+              <Mic className="text-foreground w-5 h-5" />
             </div>
             CareScribe
           </h1>
@@ -32,8 +32,8 @@ export function Navigation() {
               <a className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-medium",
                 location === item.href 
-                  ? "bg-primary/10 text-primary shadow-sm" 
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  ? "bg-primary/20 text-primary shadow-sm" 
+                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
               )}>
                 <item.icon className={cn("w-5 h-5", location === item.href ? "stroke-[2.5px]" : "stroke-2")} />
                 {item.label}
@@ -48,7 +48,7 @@ export function Navigation() {
               <p className="text-sm font-semibold text-foreground">Dr. Emily White</p>
               <p className="text-xs text-primary font-medium">Jun 20 • 9:00 AM</p>
            </div>
-           <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground w-full font-medium">
+           <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-secondary/50 hover:text-foreground w-full font-medium">
              <User className="w-5 h-5" />
              Profile
            </button>
@@ -63,7 +63,7 @@ export function Navigation() {
               <Link key={item.href} href={item.href}>
                 <a className="relative -top-6">
                   <div className={cn(
-                    "w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/30 transition-transform active:scale-95",
+                    "w-14 h-14 rounded-full bg-primary text-foreground flex items-center justify-center shadow-lg shadow-primary/30 transition-transform active:scale-95",
                     location === item.href ? "ring-4 ring-primary/20" : ""
                   )}>
                     <Mic className="w-7 h-7" />
