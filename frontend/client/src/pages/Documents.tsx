@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { FileText, Upload, Download, X } from "lucide-react";
-import { mockAppointments } from "@/lib/mockData";
+import { useAppointments } from "@/context/AppointmentsContext";
 
 export default function Documents() {
+  const { appointments } = useAppointments();
   const [docs, setDocs] = useState([
     { id: 1, name: "Visit Summary - May 15, 2024", size: "2.4 MB", type: "PDF", appointmentId: "apt-1" },
     { id: 2, name: "Lab Results - Lipid Panel", size: "1.1 MB", type: "PDF", appointmentId: null },
@@ -28,7 +29,7 @@ export default function Documents() {
 
   const getAppointmentName = (appointmentId: string | null) => {
     if (appointmentId === null) return "Not attached";
-    const apt = mockAppointments.find(a => a.id === appointmentId);
+    const apt = appointments.find(a => a.id === appointmentId);
     return apt ? apt.doctor : "Unknown";
   };
 
@@ -37,7 +38,7 @@ export default function Documents() {
       <header className="mb-8 flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Documents</h1>
-          <p className="text-muted-foreground">Uploads and exported summaries.</p>
+          <p className="text-muted-foreground">Upload or export your medical history.</p>
         </div>
         <button 
           onClick={() => setShowUploadModal(true)}
@@ -112,7 +113,7 @@ export default function Documents() {
                 className="w-full p-2 border border-border rounded-lg text-sm text-foreground bg-white focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="">Select an appointment</option>
-                {mockAppointments.map(apt => (
+                {appointments.map(apt => (
                   <option key={apt.id} value={apt.id}>
                     {apt.doctor} - {new Date(apt.date).toLocaleDateString()}
                   </option>

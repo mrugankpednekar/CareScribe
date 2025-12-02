@@ -1,11 +1,12 @@
 import { Layout } from "@/components/layout/Layout";
-import { mockAppointments } from "@/lib/mockData";
+import { useAppointments } from "@/context/AppointmentsContext";
 import { ArrowLeft, Pill, Calendar, User } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Profile() {
+  const { appointments } = useAppointments();
   // Collect all medications from all appointments
-  const allMedications = mockAppointments
+  const allMedications = appointments
     .flatMap(apt => 
       (apt.medications || []).map(med => ({
         ...med,
