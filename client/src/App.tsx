@@ -9,6 +9,7 @@ import History from "@/pages/History";
 import Record from "@/pages/Record";
 import Chat from "@/pages/Chat";
 import Documents from "@/pages/Documents";
+import Profile from "@/pages/Profile";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/record" component={Record} />
       <Route path="/chat" component={Chat} />
       <Route path="/documents" component={Documents} />
+      <Route path="/profile" component={Profile} />
       <Route component={NotFound} />
     </Switch>
   );

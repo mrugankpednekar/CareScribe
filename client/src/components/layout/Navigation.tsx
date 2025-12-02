@@ -48,10 +48,17 @@ export function Navigation() {
               <p className="text-sm font-bold text-foreground">Dr. Emily White</p>
               <p className="text-xs text-muted-foreground mt-1">Jun 20 • 9:00 AM</p>
            </div>
-           <button className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground w-full font-medium transition-colors">
-             <User className="w-5 h-5" />
-             Profile
-           </button>
+           <Link href="/profile">
+             <a className={cn(
+               "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors",
+               location === "/profile"
+                 ? "bg-primary/10 text-primary"
+                 : "text-muted-foreground hover:text-foreground"
+             )}>
+               <User className="w-5 h-5" />
+               Profile
+             </a>
+           </Link>
         </div>
       </nav>
 
