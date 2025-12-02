@@ -72,10 +72,10 @@ export default function Dashboard() {
           <Calendar tasks={calendarTasks} />
         </div>
 
-        {/* Today's Tasks */}
+        {/* Daily Checklist */}
         <div className="space-y-6">
           <div>
-            <h2 className="text-2xl font-bold text-foreground mb-1">Today's Tasks</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-1">Daily Checklist</h2>
             <p className="text-muted-foreground text-sm">{completedCount} of {totalCount} completed</p>
           </div>
           
