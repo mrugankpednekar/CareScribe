@@ -19,11 +19,9 @@ export function Navigation() {
     <>
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
-        <Link href="/">
-          <a className="mb-10 block overflow-hidden">
-            <img src={logoUrl} alt="CareScribe" className="h-28 w-auto max-w-full" />
-          </a>
-        </Link>
+        <div className="mb-12 cursor-pointer" onClick={() => window.location.href = '/'}>
+          <img src={logoUrl} alt="CareScribe" className="h-32 w-full object-contain" />
+        </div>
         
         <div className="flex flex-col gap-1">
           {navItems.map((item) => (
