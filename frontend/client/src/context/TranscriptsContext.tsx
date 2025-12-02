@@ -11,7 +11,10 @@ import type { Transcript } from "@/lib/types";
 interface TranscriptsContextValue {
   transcripts: Transcript[];
   addTranscript: (input: { appointmentId: string; lines: string[] }) => Transcript;
+  deleteTranscriptsForAppointment: (appointmentId: string) => void;
+  deleteTranscript: (transcriptId: string) => void; // 👈 NEW
 }
+
 
 const TranscriptsContext = createContext<TranscriptsContextValue | undefined>(undefined);
 
@@ -58,10 +61,22 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
     return transcript;
   };
 
-  const value = useMemo(
+  const deleteTranscriptsForAppointment = (appointmentId: string) => {
+    setTranscripts(prev => 
+      prev.filter(transcript => transcript.appointmentId !== appointmentId)
+    );
+  };
+
+  const deleteTranscript = (transcriptId: string) => {
+  setTranscripts((prev) => prev.filter((t) => t.id !== transcriptId));
+  };
+
+  const value = useMemo<TranscriptsContextValue>(
     () => ({
       transcripts,
       addTranscript,
+      deleteTranscriptsForAppointment,
+      deleteTranscript, // 👈 include here
     }),
     [transcripts],
   );

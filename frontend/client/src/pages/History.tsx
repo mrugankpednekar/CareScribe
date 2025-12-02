@@ -17,6 +17,13 @@ export default function History() {
     return db - da;
   });
 
+  // NEW: search + filter state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterSpecialty, setFilterSpecialty] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
   const [isAdding, setIsAdding] = useState(false);
   const [provider, setProvider] = useState("");
   const [dateTime, setDateTime] = useState("");
@@ -65,6 +72,88 @@ export default function History() {
     setIsAdding(false);
   };
 
+  // --- Filtering logic ---
+
+  const normalize = (value: string | undefined | null) =>
+    (value ?? "").toLowerCase().trim();
+
+  const matchesSearch = (apt: Appointment) => {
+    const q = normalize(searchQuery);
+    if (!q) return true;
+
+    const dateStr = apt.date
+      ? new Date(apt.date).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "";
+
+    const haystack = normalize(
+      [
+        apt.doctor,
+        apt.specialty,
+        apt.reason,
+        apt.notes,
+        dateStr,
+      ].join(" "),
+    );
+
+    // simple multi-word "similarity" search: all tokens must appear somewhere
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return tokens.every((token) => haystack.includes(token));
+  };
+
+  const matchesSpecialty = (apt: Appointment) => {
+    if (!filterSpecialty) return true;
+    if (filterSpecialty === "__none") {
+      // filter appointments with no specialty
+      return !apt.specialty;
+    }
+    return normalize(apt.specialty) === normalize(filterSpecialty);
+  };
+
+  const matchesDateRange = (apt: Appointment) => {
+    if (!filterDateFrom && !filterDateTo) return true;
+    if (!apt.date) return false;
+
+    const d = new Date(apt.date);
+
+    if (filterDateFrom) {
+      const from = new Date(filterDateFrom);
+      if (d < from) return false;
+    }
+
+    if (filterDateTo) {
+      // include entire "to" day by going to end of that day
+      const to = new Date(filterDateTo);
+      to.setHours(23, 59, 59, 999);
+      if (d > to) return false;
+    }
+
+    return true;
+  };
+
+  const filteredAppointments = sortedAppointments.filter(
+    (apt) => matchesSearch(apt) && matchesSpecialty(apt) && matchesDateRange(apt),
+  );
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterSpecialty("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+  };
+
+  // collect unique specialties for the filter dropdown
+  const allSpecialties = Array.from(
+    new Set(
+      appointments
+        .map((a) => a.specialty)
+        .filter((s): s is string => !!s && s.trim().length > 0),
+    ),
+  ).sort();
+
   return (
     <Layout>
       <header className="mb-8 flex items-center justify-between gap-4">
@@ -84,35 +173,105 @@ export default function History() {
         </button>
       </header>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-8">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
-          <Input
-            placeholder="Search by doctor, condition, or date..."
-            className="pl-10 bg-card border-border/50 h-12 text-base rounded-xl"
-          />
+      {/* Search + filter controls */}
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by doctor, condition, notes, or date..."
+              className="pl-10 bg-card border-border/50 h-12 text-base rounded-xl"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="px-4 py-2 bg-card border border-border/50 rounded-xl flex items-center gap-2 text-foreground hover:bg-secondary transition-colors font-medium"
+          >
+            <Filter className="w-5 h-5" />
+            Filters
+          </button>
         </div>
-        <button className="px-4 py-2 bg-card border border-border/50 rounded-xl flex items-center gap-2 text-foreground hover:bg-secondary transition-colors font-medium">
-          <Filter className="w-5 h-5" />
-          Filters
-        </button>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-card border border-border/50 rounded-xl p-4">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                From date
+              </label>
+              <Input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="h-9 text-sm bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                To date
+              </label>
+              <Input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="h-9 text-sm bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                Specialty
+              </label>
+              <select
+                value={filterSpecialty}
+                onChange={(e) => setFilterSpecialty(e.target.value)}
+                className="w-full h-9 rounded-lg border border-border bg-background px-3 text-sm"
+              >
+                <option value="">All specialties</option>
+                <option value="__none">No specialty</option>
+                {allSpecialties.map((spec) => (
+                  <option key={spec} value={spec}>
+                    {spec}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="w-full h-9 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:bg-muted"
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Timeline */}
       <div className="space-y-6 relative pl-8 border-l-2 border-border/50 ml-4 md:ml-8">
-        {sortedAppointments.map((apt) => (
-          <div key={apt.id} className="relative">
-            <div className="absolute -left-[41px] md:-left-[43px] top-6 w-5 h-5 rounded-full bg-background border-4 border-primary" />
-            <div className="mb-2 text-sm text-muted-foreground font-medium pl-2">
-              {apt.date
-                ? new Date(apt.date).toLocaleDateString("en-US", {
-                    month: "long",
-                    year: "numeric",
-                  })
-                : "No date"}
+        {filteredAppointments.length === 0 ? (
+          <p className="text-sm text-muted-foreground pl-2">
+            No appointments match your search and filters.
+          </p>
+        ) : (
+          filteredAppointments.map((apt) => (
+            <div key={apt.id} className="relative">
+              <div className="absolute -left-[41px] md:-left-[43px] top-6 w-5 h-5 rounded-full bg-background border-4 border-primary" />
+              <div className="mb-2 text-sm text-muted-foreground font-medium pl-2">
+                {apt.date
+                  ? new Date(apt.date).toLocaleDateString("en-US", {
+                      month: "long",
+                      year: "numeric",
+                    })
+                  : "No date"}
+              </div>
+              <HistoryAppointmentCard appointment={apt} />
             </div>
-            <HistoryAppointmentCard appointment={apt} />
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {isAdding && (

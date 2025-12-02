@@ -6,9 +6,11 @@ import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { useAppointments } from "@/context/AppointmentsContext";
 import type { Appointment } from "@/lib/types";
+import { useTranscripts } from "@/context/TranscriptsContext";
 
 export default function Record() {
-  const { appointments, addAppointment } = useAppointments();
+  const { appointments, addAppointment, updateAppointment } = useAppointments();
+  const { addTranscript } = useTranscripts();
 
   const [status, setStatus] = useState<"idle" | "recording" | "processing" | "done">("idle");
   const [isSetupComplete, setIsSetupComplete] = useState(false);
@@ -78,8 +80,13 @@ export default function Record() {
           const reader = new FileReader();
           reader.onloadend = () => {
             const base64 = reader.result as string;
+
             try {
-              window.localStorage.setItem("recordingData", base64);
+              // Store recording keyed by appointment (if we have one)
+              const key = attachedAppointmentId
+                ? `recordingData:${attachedAppointmentId}`
+                : "recordingData";
+              window.localStorage.setItem(key, base64);
             } catch {
               // localStorage might be full or unavailable
             }
@@ -89,9 +96,35 @@ export default function Record() {
           // ignore for now
         }
 
+        // Stop microphone
         stream.getTracks().forEach((track) => track.stop());
 
+        // Simulate processing state
         setStatus("processing");
+
+        // Attach a transcript to the selected appointment
+        if (attachedAppointmentId) {
+          try {
+            // Create a basic transcript for now
+            const transcript = addTranscript({
+              appointmentId: attachedAppointmentId,
+              lines: [
+                "Audio visit recorded with CareScribe.",
+                "Transcription service is not wired up yet, this is a demo transcript attached to your visit.",
+              ],
+            });
+
+            // Also update the appointment's transcriptIds list
+            const apt = appointments.find((a) => a.id === attachedAppointmentId);
+            if (apt) {
+              const nextTranscriptIds = [...(apt.transcriptIds ?? []), transcript.id];
+              updateAppointment(apt.id, { transcriptIds: nextTranscriptIds });
+            }
+          } catch (err) {
+            console.error("Failed to attach transcript to appointment", err);
+          }
+        }
+
         setTimeout(() => {
           setStatus("done");
         }, 2000);
@@ -193,7 +226,9 @@ export default function Record() {
 
   const attachmentSummaryText = attachedAppointment
     ? `This recording will be attached to ${attachedAppointment.doctor} on ${
-        attachedAppointment.date ? new Date(attachedAppointment.date).toLocaleDateString() : "unknown date"
+        attachedAppointment.date
+          ? new Date(attachedAppointment.date).toLocaleDateString()
+          : "unknown date"
       }.`
     : "This recording will be attached to the selected appointment.";
 

@@ -15,6 +15,7 @@ interface AppointmentsContextValue {
   appointments: Appointment[];
   addAppointment: (appointment: AppointmentInput) => Appointment;
   updateAppointment: (id: string, updates: Partial<Appointment>) => Appointment | undefined;
+  deleteAppointment: (id: string) => void;
 }
 
 const AppointmentsContext = createContext<AppointmentsContextValue | undefined>(undefined);
@@ -128,11 +129,16 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
     return updated;
   };
 
+  const deleteAppointment = (id: string) => {
+    setAppointments(prev => prev.filter(apt => apt.id !== id));
+  };
+
   const value = useMemo(
     () => ({
       appointments,
       addAppointment,
       updateAppointment,
+      deleteAppointment,
     }),
     [appointments],
   );

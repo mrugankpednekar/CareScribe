@@ -177,22 +177,22 @@ export function Calendar({ tasks }: CalendarProps) {
                   medication: { 
                     bg: "bg-primary/10", 
                     text: "text-primary", 
-                    label: "💊 Medication" 
+                    label: " Medication" 
                   },
                   appointment: { 
                     bg: "bg-secondary/10", 
                     text: "text-secondary", 
-                    label: "🏥 Appointment" 
+                    label: " Appointment" 
                   },
                   lab: { 
                     bg: "bg-blue-500/10", 
                     text: "text-blue-600", 
-                    label: "🧬 Lab Work" 
+                    label: " Lab Work" 
                   },
                   exercise: { 
                     bg: "bg-green-500/10", 
                     text: "text-green-600", 
-                    label: "💪 Activity" 
+                    label: " Activity" 
                   },
                 };
                 

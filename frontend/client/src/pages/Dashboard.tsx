@@ -23,15 +23,18 @@ export default function Dashboard() {
   const totalCount = mockTasks.length;
 
   // Create calendar tasks from appointments and today's tasks
-  const sortedAppointments = [...appointments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sortedAppointments = [...appointments].sort(
+    (a, b) =>
+      new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime()
+  );
 
   const calendarTasks = [
-    ...appointments.map(apt => ({
+    ...appointments.filter(apt => apt.date).map(apt => ({
       id: `apt-${apt.id}`,
-      date: new Date(apt.date),
+      date: new Date(apt.date!),
       title: `${apt.doctor} - ${apt.specialty}`,
       type: "appointment" as const,
-      time: new Date(apt.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+      time: new Date(apt.date!).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
     })),
     // Add today's tasks to today's date
     ...mockTasks.slice(0, 3).map((task, idx) => ({
