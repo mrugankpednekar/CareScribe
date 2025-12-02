@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { AppointmentCard } from "@/components/dashboard/AppointmentCard";
 import { TaskCard } from "@/components/dashboard/TaskCard";
+import { Calendar } from "@/components/dashboard/Calendar";
 import { mockAppointments, mockTasks } from "@/lib/mockData";
 import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
@@ -17,6 +19,25 @@ export default function Dashboard() {
   const greeting = hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
   const completedCount = mockTasks.filter(t => t.completed).length;
   const totalCount = mockTasks.length;
+
+  // Create calendar tasks from appointments and today's tasks
+  const calendarTasks = [
+    ...mockAppointments.map(apt => ({
+      id: `apt-${apt.id}`,
+      date: new Date(apt.date),
+      title: `${apt.doctor} - ${apt.specialty}`,
+      type: "appointment" as const,
+      time: new Date(apt.date).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    })),
+    // Add today's tasks to today's date
+    ...mockTasks.slice(0, 3).map((task, idx) => ({
+      id: `task-${idx}`,
+      date: today,
+      title: task.title,
+      type: task.type,
+      time: task.due,
+    })),
+  ];
 
   return (
     <Layout>
@@ -45,19 +66,11 @@ export default function Dashboard() {
         </a>
       </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Today's Tasks */}
-        <div className="lg:col-span-2 space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold text-foreground mb-1">Today's Tasks</h2>
-            <p className="text-muted-foreground text-sm">{completedCount} of {totalCount} completed</p>
-          </div>
-          
-          <div className="space-y-3">
-            {mockTasks.map(task => (
-              <TaskCard key={task.id} task={task} />
-            ))}
-          </div>
+      {/* Calendar and Tasks */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-12">
+        {/* Calendar */}
+        <div className="lg:col-span-2">
+          <Calendar tasks={calendarTasks} />
         </div>
 
         {/* Recent Visits */}
@@ -84,8 +97,22 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Today's Tasks */}
+      <div className="mb-12">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground mb-1">Today's Tasks</h2>
+          <p className="text-muted-foreground text-sm mb-4">{completedCount} of {totalCount} completed</p>
+        </div>
+        
+        <div className="space-y-3">
+          {mockTasks.map(task => (
+            <TaskCard key={task.id} task={task} />
+          ))}
+        </div>
+      </div>
+
       {/* Features Section */}
-      <section className="mt-16 pt-12 border-t border-border">
+      <section className="pt-12 border-t border-border">
         <h2 className="text-2xl font-bold text-foreground mb-8">What CareScribe Does</h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
