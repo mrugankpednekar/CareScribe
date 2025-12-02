@@ -31,7 +31,7 @@ export default function Chat() {
           <p className="text-sm text-muted-foreground mt-1">About your health, medications, and appointments</p>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-secondary border rounded-lg p-4 space-y-4 mb-4">
+        <div className="flex-1 overflow-y-auto bg-white border rounded-lg p-4 space-y-4 mb-4">
           {messages.map((msg, i) => (
             <div key={i} className={cn(
               "flex gap-3",
@@ -46,8 +46,8 @@ export default function Chat() {
               <div className={cn(
                 "p-3 rounded-lg text-sm",
                 msg.role === "user" 
-                  ? "bg-primary text-primary-foreground rounded-tr-none" 
-                  : "bg-card border border-border rounded-tl-none"
+                  ? "bg-secondary text-white rounded-tr-none" 
+                  : "bg-muted text-primary rounded-tl-none"
               )}>
                 {msg.content}
               </div>
