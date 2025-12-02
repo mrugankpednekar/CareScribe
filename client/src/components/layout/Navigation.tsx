@@ -20,8 +20,8 @@ export function Navigation() {
       {/* Desktop Sidebar */}
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
         <Link href="/">
-          <a className="mb-8 block">
-            <img src={logoUrl} alt="CareScribe" className="h-14 w-auto" />
+          <a className="mb-10 block overflow-hidden">
+            <img src={logoUrl} alt="CareScribe" className="h-28 w-auto max-w-full" />
           </a>
         </Link>
         
