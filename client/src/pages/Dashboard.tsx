@@ -96,7 +96,16 @@ export default function Dashboard() {
             { img: downloadImage, title: "Export Data", desc: "Share your records" },
           ].map((feature, i) => (
             <div key={i} className="bg-card rounded-lg p-6 text-center border border-border hover:border-muted transition-colors">
-              <img src={feature.img} alt={feature.title} className="w-full h-32 object-contain mb-4" />
+              <div className="w-full h-32 mb-4 rounded-lg overflow-hidden bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center">
+                <img 
+                  src={feature.img} 
+                  alt={feature.title} 
+                  className="w-full h-full object-contain opacity-90"
+                  style={{
+                    filter: 'hue-rotate(180deg) saturate(0.8) brightness(1.1)'
+                  }}
+                />
+              </div>
               <h3 className="font-bold text-foreground text-base">{feature.title}</h3>
               <p className="text-sm text-muted-foreground mt-1">{feature.desc}</p>
             </div>
