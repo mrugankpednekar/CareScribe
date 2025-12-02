@@ -27,14 +27,14 @@ export function TaskCard({ task }: TaskCardProps) {
     <div className={cn(
       "flex items-center gap-4 p-4 rounded-xl border transition-all duration-300",
       checked 
-        ? "bg-secondary/30 border-transparent opacity-60" 
-        : "bg-card border-border/50 hover:border-primary/30 hover:shadow-sm"
+        ? "bg-success/20 border-success/20 opacity-70" 
+        : "bg-card border-border/50 hover:border-success/30 hover:shadow-sm"
     )}>
       <div className="relative flex items-center justify-center">
         <Checkbox 
           checked={checked} 
           onCheckedChange={(c) => setChecked(!!c)}
-          className="w-6 h-6 rounded-full border-2 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+          className="w-6 h-6 rounded-full border-2 data-[state=checked]:bg-success data-[state=checked]:border-success"
         />
       </div>
       

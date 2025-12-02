@@ -50,7 +50,7 @@ export default function Dashboard() {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground">Today's Plan</h2>
-            <span className="text-sm font-medium text-foreground bg-secondary px-3 py-1 rounded-full">
+            <span className="text-sm font-medium text-foreground bg-success/30 px-3 py-1 rounded-full">
               {mockTasks.filter(t => !t.completed).length} Remaining
             </span>
           </div>
@@ -81,7 +81,7 @@ export default function Dashboard() {
 
           {/* Quick Add */}
           <div className="pt-4">
-             <button className="w-full py-3 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-foreground hover:text-foreground transition-colors font-medium">
+             <button className="w-full py-3 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-foreground hover:border-success hover:text-success transition-colors font-medium hover:bg-success/5">
                <Plus className="w-5 h-5" />
                Add Past Record
              </button>
@@ -95,28 +95,28 @@ export default function Dashboard() {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Lab Test Reminders */}
-          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50 hover:border-success/30">
             <img src={labTestImage} alt="Lab Test Reminders" className="w-full h-40 object-contain mb-4" />
             <h3 className="font-bold text-foreground">Lab Test Reminders</h3>
             <p className="text-sm text-muted-foreground mt-2">Never miss an important test or follow-up.</p>
           </div>
 
           {/* Daily To-Dos */}
-          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50 hover:border-success/30">
             <img src={todosImage} alt="Daily To-Dos" className="w-full h-40 object-contain mb-4" />
             <h3 className="font-bold text-foreground">Daily To-Dos & Reminders</h3>
             <p className="text-sm text-muted-foreground mt-2">Smart reminders for your medications and care.</p>
           </div>
 
           {/* AI Follow-ups */}
-          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50 hover:border-success/30">
             <img src={aiFollowupsImage} alt="AI Follow-ups" className="w-full h-40 object-contain mb-4" />
             <h3 className="font-bold text-foreground">AI Follow-ups & Answers</h3>
             <p className="text-sm text-muted-foreground mt-2">Get instant answers about your health data.</p>
           </div>
 
           {/* Download Summary */}
-          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50">
+          <div className="bg-card rounded-2xl p-6 text-center hover:shadow-md transition-shadow border border-border/50 hover:border-success/30">
             <img src={downloadImage} alt="Download Summary" className="w-full h-40 object-contain mb-4" />
             <h3 className="font-bold text-foreground">Download Your Summary</h3>
             <p className="text-sm text-muted-foreground mt-2">Export your health data anytime.</p>
