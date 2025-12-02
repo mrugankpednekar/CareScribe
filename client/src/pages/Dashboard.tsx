@@ -5,11 +5,12 @@ import { mockAppointments, mockTasks } from "@/lib/mockData";
 import { Mic, Plus, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
-// Import the mascot images
-const labTestImage = new URL('@assets/PHOTO-2025-12-01-19-51-30_1764636869315.jpg', import.meta.url).href;
-const todosImage = new URL('@assets/PHOTO-2025-12-01-19-51-32_1764636869316.jpg', import.meta.url).href;
-const aiFollowupsImage = new URL('@assets/PHOTO-2025-12-01-19-51-31 2_1764636869316.jpg', import.meta.url).href;
-const downloadImage = new URL('@assets/PHOTO-2025-12-01-19-51-31_1764636869316.jpg', import.meta.url).href;
+// Import illustrations
+const recordingIllustration = new URL('@assets/image_1764638376626.png', import.meta.url).href;
+const tasksIllustration = new URL('@assets/image_1764638415508.png', import.meta.url).href;
+const wellnessIllustration = new URL('@assets/image_1764638578570.png', import.meta.url).href;
+const medicationsIllustration = new URL('@assets/image_1764638616917.png', import.meta.url).href;
+const documentsIllustration = new URL('@assets/image_1764638627639.png', import.meta.url).href;
 
 export default function Dashboard() {
   const today = new Date();
@@ -88,26 +89,22 @@ export default function Dashboard() {
       <section className="mt-16 pt-12 border-t border-border">
         <h2 className="text-2xl font-bold text-foreground mb-8">What CareScribe Does</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {[
-            { img: labTestImage, title: "Lab Reminders", desc: "Never miss a test" },
-            { img: todosImage, title: "Daily Tasks", desc: "Medication & care reminders" },
-            { img: aiFollowupsImage, title: "Ask Questions", desc: "Get instant answers" },
-            { img: downloadImage, title: "Export Data", desc: "Share your records" },
+            { img: recordingIllustration, title: "Record & Transcribe", desc: "AI captures your appointments" },
+            { img: tasksIllustration, title: "Daily Tasks", desc: "Organized reminders & follow-ups" },
+            { img: wellnessIllustration, title: "Health Progress", desc: "Track your wellness journey" },
+            { img: medicationsIllustration, title: "Medications", desc: "Never miss a dose" },
+            { img: documentsIllustration, title: "Export & Share", desc: "Get your records anytime" },
           ].map((feature, i) => (
-            <div key={i} className="bg-card rounded-lg p-6 text-center border border-border hover:border-muted transition-colors">
-              <div className="w-full h-32 mb-4 rounded-lg overflow-hidden bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center">
-                <img 
-                  src={feature.img} 
-                  alt={feature.title} 
-                  className="w-full h-full object-contain opacity-90"
-                  style={{
-                    filter: 'hue-rotate(180deg) saturate(0.8) brightness(1.1)'
-                  }}
-                />
-              </div>
-              <h3 className="font-bold text-foreground text-base">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground mt-1">{feature.desc}</p>
+            <div key={i} className="bg-card rounded-lg p-6 text-center border border-border hover:border-muted transition-colors flex flex-col items-center">
+              <img 
+                src={feature.img} 
+                alt={feature.title} 
+                className="w-full h-40 object-contain mb-4"
+              />
+              <h3 className="font-bold text-foreground text-sm">{feature.title}</h3>
+              <p className="text-xs text-muted-foreground mt-1 leading-tight">{feature.desc}</p>
             </div>
           ))}
         </div>
