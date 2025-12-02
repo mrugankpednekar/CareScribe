@@ -20,7 +20,9 @@ export function Navigation() {
       <nav className="hidden md:flex flex-col w-64 border-r bg-card h-screen fixed left-0 top-0 z-20 p-6">
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-primary flex items-center gap-3">
-            <img src={logoUrl} alt="CareScribe" className="w-12 h-12 flex-shrink-0" />
+            <div className="w-12 h-12 flex-shrink-0 overflow-visible">
+              <img src={logoUrl} alt="CareScribe" className="w-full h-full" />
+            </div>
             CareScribe
           </h1>
         </div>
