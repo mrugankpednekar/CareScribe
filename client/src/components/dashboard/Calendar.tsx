@@ -187,7 +187,7 @@ export function Calendar({ tasks }: CalendarProps) {
                   lab: { 
                     bg: "bg-blue-500/10", 
                     text: "text-blue-600", 
-                    label: "🧪 Lab Test" 
+                    label: "🧬 Lab Work" 
                   },
                   exercise: { 
                     bg: "bg-green-500/10", 
