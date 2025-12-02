@@ -1,0 +1,128 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Source Sans Pro", sans-serif;
+  --font-display: "Source Sans Pro", sans-serif;
+}
+
+:root {
+  /* BNH Labs Inspired - Minimalist Wellness Palette */
+  /* Deep Teal (#2C6975) - Primary, trustworthy */
+  /* Medium Teal (#68B2A0) - Secondary, calm */
+  /* Light Mint (#CDE0C9) - Accents, fresh */
+  /* Off-white - Clean background */
+  
+  --background: 160 25% 95%; /* Very light mint-tinted white */
+  --foreground: 195 30% 32%; /* Deep teal for text */
+
+  --card: 0 0% 100%; /* Pure white */
+  --card-foreground: 195 30% 32%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 195 30% 32%;
+
+  /* Primary: Deep Teal #2C6975 */
+  --primary: 195 30% 36%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary: Medium Teal #68B2A0 */
+  --secondary: 160 35% 58%;
+  --secondary-foreground: 0 0% 100%;
+
+  /* Muted: Light Mint for soft accents */
+  --muted: 145 35% 82%;
+  --muted-foreground: 195 15% 55%;
+
+  /* Accent: Medium Teal */
+  --accent: 160 35% 58%;
+  --accent-foreground: 0 0% 100%;
+
+  /* Destructive */
+  --destructive: 0 80% 56%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Borders & Inputs */
+  --border: 160 20% 88%;
+  --input: 160 20% 88%;
+  --ring: 195 30% 36%;
+
+  /* Charts */
+  --chart-1: 195 30% 36%;
+  --chart-2: 160 35% 58%;
+  --chart-3: 145 35% 82%;
+  --chart-4: 160 25% 95%;
+  --chart-5: 0 0% 95%;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: 195 30% 18%;
+  --foreground: 160 25% 95%;
+  --card: 195 30% 25%;
+  --card-foreground: 160 25% 95%;
+  --popover: 195 30% 25%;
+  --popover-foreground: 160 25% 95%;
+  --primary: 195 30% 45%;
+  --primary-foreground: 195 30% 18%;
+  --secondary: 160 35% 63%;
+  --secondary-foreground: 195 30% 18%;
+  --muted: 195 30% 32%;
+  --muted-foreground: 160 25% 75%;
+  --accent: 160 35% 63%;
+  --accent-foreground: 195 30% 18%;
+  --destructive: 0 80% 60%;
+  --destructive-foreground: 195 30% 18%;
+  --border: 195 30% 28%;
+  --input: 195 30% 28%;
+  --ring: 195 30% 45%;
+  --chart-1: 195 30% 45%;
+  --chart-2: 160 35% 63%;
+  --chart-3: 160 25% 95%;
+  --chart-4: 195 30% 32%;
+  --chart-5: 195 30% 25%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-bold tracking-tight;
+    font-weight: 700;
+  }
+}

@@ -1,0 +1,6 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- Outer Deep Teal C -->
+  <path d="M 110 60 A 50 50 0 0 1 10 60" fill="none" stroke="#2C6975" stroke-width="24" stroke-linecap="round"/>
+  <!-- Inner Medium Teal C -->
+  <path d="M 90 60 A 32 32 0 0 1 30 60" fill="none" stroke="#68B2A0" stroke-width="20" stroke-linecap="round"/>
+</svg>
