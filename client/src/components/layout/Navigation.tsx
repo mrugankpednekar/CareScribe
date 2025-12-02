@@ -1,8 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { Home, Calendar, Mic, MessageSquare, FileText, User } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const logoUrl = new URL('@assets/image_1764641826077.png', import.meta.url).href;
+import logoUrl from "@/assets/carescribe-logo.svg";
 
 export function Navigation() {
   const [location] = useLocation();
