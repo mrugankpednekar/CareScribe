@@ -12,15 +12,13 @@ export default function Chat() {
   const handleSend = () => {
     if (!input.trim()) return;
     
-    const newMsg = { role: "user", content: input };
-    setMessages([...messages, newMsg]);
+    setMessages([...messages, { role: "user", content: input }]);
     setInput("");
 
-    // Simulate AI response
     setTimeout(() => {
       setMessages(prev => [...prev, { 
         role: "assistant", 
-        content: "I'm a demo AI, but in the real app I would answer based on your medical records!" 
+        content: "I'm a demo. In the real app, I'd answer based on your medical records." 
       }]);
     }, 1000);
   };
@@ -29,30 +27,27 @@ export default function Chat() {
     <Layout>
       <div className="flex flex-col h-[calc(100vh-8rem)] md:h-[calc(100vh-4rem)]">
         <header className="mb-4 flex-shrink-0">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Bot className="text-primary w-8 h-8" />
-            Health Assistant
-          </h1>
-          <p className="text-muted-foreground text-sm">Ask about your medications, appointments, or doctor's instructions.</p>
+          <h1 className="text-2xl font-bold text-foreground">Ask Anything</h1>
+          <p className="text-sm text-muted-foreground mt-1">About your health, medications, and appointments</p>
         </header>
 
-        <div className="flex-1 overflow-y-auto bg-card/50 border border-border/50 rounded-2xl p-4 space-y-4 mb-4">
+        <div className="flex-1 overflow-y-auto bg-secondary border rounded-lg p-4 space-y-4 mb-4">
           {messages.map((msg, i) => (
             <div key={i} className={cn(
-              "flex gap-3 max-w-[85%]",
-              msg.role === "user" ? "ml-auto flex-row-reverse" : ""
+              "flex gap-3",
+              msg.role === "user" ? "ml-auto flex-row-reverse max-w-xs" : "max-w-xs"
             )}>
               <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                msg.role === "user" ? "bg-secondary text-foreground" : "bg-primary text-foreground"
+                "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm",
+                msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
               )}>
-                {msg.role === "user" ? <User className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
+                {msg.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
               <div className={cn(
-                "p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
+                "p-3 rounded-lg text-sm",
                 msg.role === "user" 
-                  ? "bg-primary text-foreground rounded-tr-none" 
-                  : "bg-white border border-border/50 text-foreground rounded-tl-none"
+                  ? "bg-primary text-primary-foreground rounded-tr-none" 
+                  : "bg-card border border-border rounded-tl-none"
               )}>
                 {msg.content}
               </div>
@@ -65,14 +60,14 @@ export default function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Type your question..." 
-            className="flex-1 h-12 bg-card border-border/50 rounded-xl"
+            placeholder="Ask a question..." 
+            className="flex-1 h-10"
           />
           <button 
             onClick={handleSend}
-            className="bg-primary text-foreground w-12 h-12 rounded-xl flex items-center justify-center hover:bg-primary/90 transition-colors shadow-sm"
+            className="bg-primary text-primary-foreground w-10 h-10 rounded-lg flex items-center justify-center hover:bg-primary/90"
           >
-            <Send className="w-5 h-5" />
+            <Send className="w-4 h-4" />
           </button>
         </div>
       </div>

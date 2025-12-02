@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { VoiceVisualizer } from "@/components/record/VoiceVisualizer";
-import { Mic, Square, Loader2, CheckCircle2, FileText } from "lucide-react";
+import { Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
@@ -10,7 +10,6 @@ export default function Record() {
   const [transcript, setTranscript] = useState<string[]>([]);
   const [status, setStatus] = useState<"idle" | "recording" | "processing" | "done">("idle");
 
-  // Simulation of live transcription
   useEffect(() => {
     if (!isRecording) return;
 
@@ -43,7 +42,6 @@ export default function Record() {
     } else if (status === "recording") {
       setIsRecording(false);
       setStatus("processing");
-      // Simulate processing delay
       setTimeout(() => {
         setStatus("done");
       }, 3000);
@@ -52,23 +50,20 @@ export default function Record() {
 
   return (
     <Layout>
-      <div className="flex flex-col items-center justify-center min-h-[80vh] max-w-2xl mx-auto">
+      <div className="flex flex-col items-center justify-center min-h-[70vh]">
         
         {status === "idle" && (
-          <div className="text-center space-y-8 animate-in fade-in zoom-in duration-500">
-            <div className="bg-primary/20 w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Mic className="w-16 h-16 text-primary" />
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-8">
+              <Mic className="w-10 h-10 text-primary" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Ready to Record?</h1>
-              <p className="text-muted-foreground text-lg">
-                Tap the button below when your appointment starts.<br/>
-                We'll listen and organize everything for you.
-              </p>
-            </div>
+            <h1 className="text-3xl font-bold text-foreground mb-4">Ready to Record?</h1>
+            <p className="text-muted-foreground mb-8 leading-relaxed">
+              Start recording when your appointment begins. We'll take care of the rest.
+            </p>
             <button 
               onClick={handleToggleRecord}
-              className="bg-primary hover:bg-primary/90 text-foreground text-lg font-bold py-4 px-12 rounded-full shadow-xl shadow-primary/30 transition-all hover:scale-105 active:scale-95"
+              className="bg-primary text-primary-foreground px-8 py-3 rounded-lg font-bold shadow-sm hover:shadow-md transition-all hover:scale-105 active:scale-95"
             >
               Start Recording
             </button>
@@ -76,22 +71,21 @@ export default function Record() {
         )}
 
         {status === "recording" && (
-          <div className="w-full space-y-8 animate-in fade-in">
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-4 py-1 rounded-full bg-primary/20 text-primary text-sm font-medium mb-8">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                Recording Live
+          <div className="w-full max-w-2xl">
+            <div className="text-center mb-8">
+              <div className="inline-block px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-semibold mb-6">
+                ● Recording
               </div>
               <VoiceVisualizer isRecording={true} />
             </div>
 
-            <div className="bg-card border rounded-2xl p-6 h-64 overflow-y-auto shadow-inner space-y-3">
+            <div className="bg-card border rounded-lg p-6 h-64 overflow-y-auto space-y-3 mb-8">
               {transcript.length === 0 && (
-                <p className="text-muted-foreground text-center italic mt-20">Listening...</p>
+                <p className="text-muted-foreground text-center text-sm mt-20">Listening...</p>
               )}
               {transcript.map((line, i) => (
-                <p key={i} className="text-lg text-foreground animate-in slide-in-from-bottom-2">
-                  <span className={cn("font-bold mr-2", line.startsWith("Doctor") ? "text-primary" : "text-muted-foreground")}>
+                <p key={i} className="text-sm text-foreground">
+                  <span className={cn("font-bold", line.startsWith("Doctor") ? "text-primary" : "text-muted-foreground")}>
                     {line.split(":")[0]}:
                   </span>
                   {line.split(":")[1]}
@@ -102,45 +96,39 @@ export default function Record() {
             <div className="flex justify-center">
               <button 
                 onClick={handleToggleRecord}
-                className="bg-foreground hover:bg-foreground/90 text-background rounded-full p-6 shadow-lg transition-all hover:scale-105 active:scale-95"
+                className="bg-foreground text-background rounded-full p-4 shadow-sm hover:shadow-md transition-all"
               >
-                <Square className="w-8 h-8 fill-current" />
+                <Square className="w-6 h-6 fill-current" />
               </button>
             </div>
           </div>
         )}
 
         {status === "processing" && (
-          <div className="text-center space-y-6 animate-in fade-in">
-             <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
-             <h2 className="text-2xl font-bold">Processing Appointment...</h2>
-             <p className="text-muted-foreground">
-               Extracting diagnoses, medications, and instructions.
-             </p>
+          <div className="text-center">
+             <Loader2 className="w-12 h-12 text-primary animate-spin mx-auto mb-4" />
+             <h2 className="text-2xl font-bold text-foreground">Processing...</h2>
+             <p className="text-muted-foreground mt-2">Organizing your appointment</p>
           </div>
         )}
 
         {status === "done" && (
-          <div className="text-center space-y-8 animate-in fade-in zoom-in">
-            <div className="w-24 h-24 bg-primary/20 rounded-full flex items-center justify-center mx-auto text-primary">
-              <CheckCircle2 className="w-12 h-12" />
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6 text-primary">
+              <CheckCircle2 className="w-10 h-10" />
             </div>
-            <div>
-              <h2 className="text-3xl font-bold mb-2">All Done!</h2>
-              <p className="text-muted-foreground">
-                We've organized your visit details.
-              </p>
-            </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Done!</h2>
+            <p className="text-muted-foreground mb-8">Your appointment is saved and organized.</p>
             
-            <div className="flex flex-col gap-3 w-full max-w-xs mx-auto">
+            <div className="flex flex-col gap-3">
               <Link href="/history">
-                <button className="w-full bg-primary text-foreground py-3 rounded-xl font-bold shadow-lg hover:bg-primary/90 transition-colors">
+                <button className="w-full bg-primary text-primary-foreground py-2 rounded-lg font-bold shadow-sm hover:shadow-md">
                   View Summary
                 </button>
               </Link>
               <button 
-                onClick={() => { setStatus("idle"); setTranscript([]); setIsRecording(false); }}
-                className="w-full bg-secondary text-foreground py-3 rounded-xl font-medium hover:bg-secondary/80 transition-colors"
+                onClick={() => { setStatus("idle"); setTranscript([]); }}
+                className="w-full bg-secondary text-foreground py-2 rounded-lg font-medium hover:bg-secondary/80"
               >
                 Record Another
               </button>
