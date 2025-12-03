@@ -11,7 +11,7 @@ export function Navigation() {
 
   const navItems = [
     { href: "/", icon: Home, label: "Home" },
-    { href: "/history", icon: Calendar, label: "History" },
+    { href: "/history", icon: Calendar, label: "Appointments" },
     { href: "/record", icon: Mic, label: "Record", isFab: true },
     { href: "/chat", icon: MessageSquare, label: "Chat" },
     { href: "/documents", icon: FileText, label: "Docs" },

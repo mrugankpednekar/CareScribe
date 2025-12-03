@@ -6,12 +6,28 @@ export interface Medication {
   id: string;
   name: string;
   dosage: string;
-  frequency: string;
+  frequency: string; // e.g., "Once daily", "Twice daily", "Every 8 hours"
   active: boolean;
+  // Calendar scheduling fields
+  times?: string[]; // Array of times in HH:MM format, e.g., ["08:00", "20:00"]
+  startDate?: string; // ISO date string when medication starts
+  endDate?: string; // ISO date string when medication ends (optional for ongoing)
+  // Prescription details
+  prescribedBy?: string; // Doctor name
+  prescribedDate?: string; // ISO date string
+  appointmentId?: string; // Link to appointment if prescribed during visit
+  reason?: string; // Why this medication was prescribed
+  
+  // Recurrence fields
+  frequencyType?: "daily" | "weekly" | "once";
+  selectedDays?: number[]; // 0-6 (Sun-Sat)
 }
+
+export type AppointmentType = "appointment" | "lab";
 
 export interface Appointment {
   id: string;
+  type?: AppointmentType; // "appointment" or "lab", defaults to "appointment"
   date?: string; // ISO string, optional if user skipped for past visit
   doctor: string;
   specialty?: string; // "General", "Dermatology", "ENT", etc.
@@ -21,6 +37,10 @@ export interface Appointment {
   diagnosis: string[];
   instructions: string[];
   medications: Medication[];
+
+  // Lab-specific fields
+  labType?: string; // e.g., "Blood Test", "X-Ray", "MRI", etc.
+  attachedProviderId?: string; // Appointment ID of the provider who ordered this lab
 
   // Backend-linked fields (ids to other lists / resources)
   transcriptIds?: string[];  // IDs of transcripts stored in backend
@@ -76,4 +96,34 @@ export interface Transcript {
   createdAt: string; // ISO
   title: string;
   lines: string[];
+}
+// ---------------------------
+// Calendar + Checklist Types
+// ---------------------------
+
+// Valid event/task types
+export type EventType =
+  | "appointment"
+  | "lab"
+  | "medication"
+  | "activity"
+  | "other";
+
+// Task object used by TaskCard
+export interface Task {
+  id: string;
+  title: string;
+  subtitle?: string;
+  due: string;
+  type: EventType;
+  completed: boolean;
+}
+
+// Calendar tasks used by Calendar.tsx
+export interface CalendarTask {
+  id: string;
+  date: Date;
+  title: string;
+  type: EventType;
+  time?: string;
 }

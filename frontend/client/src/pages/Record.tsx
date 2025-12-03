@@ -7,10 +7,13 @@ import { Link } from "wouter";
 import { useAppointments } from "@/context/AppointmentsContext";
 import type { Appointment } from "@/lib/types";
 import { useTranscripts } from "@/context/TranscriptsContext";
+import { useUserProfile } from "@/context/UserProfileContext";
+import { DateTimePicker } from "@/components/ui/date-picker";
 
 export default function Record() {
   const { appointments, addAppointment, updateAppointment } = useAppointments();
   const { addTranscript } = useTranscripts();
+  const { profile } = useUserProfile();
 
   const [status, setStatus] = useState<"idle" | "recording" | "processing" | "done">("idle");
   const [isSetupComplete, setIsSetupComplete] = useState(false);
@@ -49,7 +52,7 @@ export default function Record() {
     setMicError(null);
     try {
       const audio = new Audio("/sounds/record-start.mp3");
-      audio.play().catch(() => {});
+      audio.play().catch(() => { });
     } catch {
       // ignore audio error
     }
@@ -166,8 +169,8 @@ export default function Record() {
   const completedSummary =
     attachedAppointment && attachedAppointment.date
       ? `Attached to ${attachedAppointment.doctor} (${new Date(
-          attachedAppointment.date,
-        ).toLocaleDateString()})`
+        attachedAppointment.date,
+      ).toLocaleDateString()})`
       : "Recording attached to the selected appointment.";
 
   const handleNextFromAppointmentStep = () => {
@@ -221,191 +224,208 @@ export default function Record() {
       return;
     }
 
+    const fullName = `${profile.firstName} ${profile.lastName}`.toLowerCase();
+    if (signature.trim().toLowerCase() !== fullName) {
+      setSetupError(`Signature must match your full name: ${profile.firstName} ${profile.lastName}`);
+      return;
+    }
+
     setIsSetupComplete(true);
   };
 
   const attachmentSummaryText = attachedAppointment
-    ? `This recording will be attached to ${attachedAppointment.doctor} on ${
-        attachedAppointment.date
-          ? new Date(attachedAppointment.date).toLocaleDateString()
-          : "unknown date"
-      }.`
+    ? `This recording will be attached to ${attachedAppointment.doctor} on ${attachedAppointment.date
+      ? new Date(attachedAppointment.date).toLocaleDateString()
+      : "unknown date"
+    }.`
     : "This recording will be attached to the selected appointment.";
 
   return (
     <Layout>
-      <div className="relative w-full h-full">
-        {!isSetupComplete && (
-          <div className="absolute inset-0 z-40 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-card max-w-lg w-full rounded-2xl border border-border shadow-xl p-6 md:p-8">
-              {flowStep === 1 && (
-                <>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Choose appointment</h2>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Select or create an appointment before recording.
-                  </p>
+      <div className="relative w-full h-full flex flex-col items-center justify-center min-h-[70vh]">
+        {!isSetupComplete ? (
+          <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-sm p-6 md:p-8">
+            {flowStep === 1 && (
+              <>
+                <h2 className="text-2xl font-bold text-foreground mb-2">Choose appointment</h2>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Select or create an appointment before recording.
+                </p>
 
-                  <div className="flex gap-2 mb-4">
-                    <button
-                      className={cn(
-                        "flex-1 px-4 py-2 rounded-lg text-sm font-semibold",
-                        attachMode === "existing"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground",
-                      )}
-                      onClick={() => setAttachMode("existing")}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    className={cn(
+                      "flex-1 px-4 py-2 rounded-lg text-sm font-semibold",
+                      attachMode === "existing"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground",
+                    )}
+                    onClick={() => setAttachMode("existing")}
+                  >
+                    Existing
+                  </button>
+                  <button
+                    className={cn(
+                      "flex-1 px-4 py-2 rounded-lg text-sm font-semibold",
+                      attachMode === "new"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground",
+                    )}
+                    onClick={() => setAttachMode("new")}
+                  >
+                    New
+                  </button>
+                </div>
+
+                {attachMode === "existing" ? (
+                  <div className="space-y-2 mb-6">
+                    <label className="text-sm font-medium text-foreground">Appointment</label>
+                    <select
+                      value={selectedAppointmentId}
+                      onChange={(e) => setSelectedAppointmentId(e.target.value)}
+                      className="w-full p-3 border border-border rounded-lg bg-background text-sm"
                     >
-                      Existing
-                    </button>
-                    <button
-                      className={cn(
-                        "flex-1 px-4 py-2 rounded-lg text-sm font-semibold",
-                        attachMode === "new"
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-foreground",
-                      )}
-                      onClick={() => setAttachMode("new")}
-                    >
-                      New
-                    </button>
+                      {appointments.length === 0 && <option value="">No appointments</option>}
+                      {appointments
+                        .filter((apt) => apt.date && apt.status !== "cancelled") // Only show scheduled and non-cancelled appointments
+                        .map((apt) => {
+                          const isLab = apt.type === "lab";
+                          const label = isLab
+                            ? `${apt.labType || "Lab Work"} (Lab) • ${apt.date ? new Date(apt.date).toLocaleDateString() : "No date"}`
+                            : `${apt.doctor || "Provider"} • ${apt.date ? new Date(apt.date).toLocaleDateString() : "No date"}`;
+                          return (
+                            <option key={apt.id} value={apt.id}>
+                              {label}
+                            </option>
+                          );
+                        })}
+                    </select>
                   </div>
-
-                  {attachMode === "existing" ? (
-                    <div className="space-y-2 mb-6">
-                      <label className="text-sm font-medium text-foreground">Appointment</label>
-                      <select
-                        value={selectedAppointmentId}
-                        onChange={(e) => setSelectedAppointmentId(e.target.value)}
+                ) : (
+                  <div className="space-y-4 mb-6">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Provider</label>
+                      <input
+                        type="text"
+                        value={newAppointment.doctor}
+                        onChange={(e) =>
+                          setNewAppointment((prev) => ({ ...prev, doctor: e.target.value }))
+                        }
                         className="w-full p-3 border border-border rounded-lg bg-background text-sm"
-                      >
-                        {appointments.length === 0 && <option value="">No appointments</option>}
-                        {appointments.map((apt) => (
-                          <option key={apt.id} value={apt.id}>
-                            {apt.doctor || "Provider"} •{" "}
-                            {apt.date ? new Date(apt.date).toLocaleDateString() : "No date"}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder="e.g. Dr. Emily White"
+                      />
                     </div>
-                  ) : (
-                    <div className="space-y-4 mb-6">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Provider</label>
-                        <input
-                          type="text"
-                          value={newAppointment.doctor}
-                          onChange={(e) =>
-                            setNewAppointment((prev) => ({ ...prev, doctor: e.target.value }))
-                          }
-                          className="w-full p-3 border border-border rounded-lg bg-background text-sm"
-                          placeholder="e.g. Dr. Emily White"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Date & time</label>
-                        <input
-                          type="datetime-local"
-                          value={newAppointment.date}
-                          onChange={(e) =>
-                            setNewAppointment((prev) => ({ ...prev, date: e.target.value }))
-                          }
-                          className="w-full p-3 border border-border rounded-lg bg-background text-sm"
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Date & time</label>
+                      <DateTimePicker
+                        date={newAppointment.date ? new Date(newAppointment.date) : undefined}
+                        setDate={(date) =>
+                          setNewAppointment((prev) => ({
+                            ...prev,
+                            date: date ? date.toISOString() : "",
+                          }))
+                        }
+                      />
                     </div>
-                  )}
-
-                  {setupError && (
-                    <div className="mb-4 px-3 py-2 bg-red-50 text-red-700 text-xs rounded-lg">
-                      {setupError}
-                    </div>
-                  )}
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleNextFromAppointmentStep}
-                      className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
-                    >
-                      Continue
-                    </button>
                   </div>
-                </>
-              )}
+                )}
 
-              {flowStep === 2 && (
-                <>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Recording consent</h2>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Please confirm consent before recording.
-                  </p>
-
-                  <div className="mb-4 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    {attachmentSummaryText}
+                {setupError && (
+                  <div className="mb-4 px-3 py-2 bg-red-50 text-red-700 text-xs rounded-lg">
+                    {setupError}
                   </div>
+                )}
 
-                  <div className="space-y-3 mb-4 text-sm">
-                    <label className="flex items-start gap-2">
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleNextFromAppointmentStep}
+                    className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </>
+            )}
+
+            {flowStep === 2 && (
+              <>
+                <h2 className="text-2xl font-bold text-foreground mb-2">Recording Consent Form</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  By law and ethics, you MUST obtain explicit verbal consent from your healthcare provider before starting this recording. Recording without permission is a serious violation of trust and may be illegal in your state/jurisdiction.
+                </p>
+
+                <div className="mb-4 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {attachmentSummaryText}
+                </div>
+
+                <div className="space-y-4 mb-4">
+                  <div className="space-y-3">
+                    <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={consentUnderstands}
                         onChange={(e) => setConsentUnderstands(e.target.checked)}
-                        className="mt-1"
+                        className="mt-1 w-4 h-4"
+                        required
                       />
-                      <span>I understand I must obtain my doctor’s consent before recording.</span>
+                      <span className="text-sm text-foreground">
+                        I have read and understood my legal obligation to obtain consent before recording.
+                      </span>
                     </label>
 
-                    <label className="flex items-start gap-2">
+                    <label className="flex items-start gap-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={consentVerbalYes}
                         onChange={(e) => setConsentVerbalYes(e.target.checked)}
-                        className="mt-1"
+                        className="mt-1 w-4 h-4"
+                        required
                       />
-                      <span>I confirm I received a verbal “yes” from my doctor to record.</span>
+                      <span className="text-sm text-foreground">
+                        I verbally confirm that my healthcare provider has given me explicit permission to record this consultation.
+                      </span>
                     </label>
                   </div>
+                </div>
 
-                  <div className="space-y-2 mb-4">
-                    <label className="text-xs font-medium text-foreground">
-                      Signature (full name)
-                    </label>
-                    <input
-                      type="text"
-                      value={signature}
-                      onChange={(e) => setSignature(e.target.value)}
-                      className="w-full p-2.5 border border-border rounded-lg bg-background text-sm"
-                      placeholder="Your full name"
-                    />
+                <div className="space-y-2 mb-4">
+                  <label className="text-sm font-medium text-foreground">
+                    Signature (full name) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={signature}
+                    onChange={(e) => setSignature(e.target.value)}
+                    className="w-full p-2.5 border border-border rounded-lg bg-background text-sm"
+                    placeholder="Your full name"
+                    required
+                  />
+                </div>
+
+                {setupError && (
+                  <div className="mb-4 px-3 py-2 bg-red-50 text-red-700 text-xs rounded-lg">
+                    {setupError}
                   </div>
+                )}
 
-                  {setupError && (
-                    <div className="mb-4 px-3 py-2 bg-red-50 text-red-700 text-xs rounded-lg">
-                      {setupError}
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center gap-3">
-                    <button
-                      onClick={() => setFlowStep(1)}
-                      className="px-4 py-2 rounded-lg border border-border text-xs font-medium"
-                    >
-                      Back
-                    </button>
-                    <button
-                      onClick={handleConsentContinue}
-                      className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold"
-                    >
-                      Agree & continue
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                <div className="flex justify-between items-center gap-3">
+                  <button
+                    onClick={() => setFlowStep(1)}
+                    className="px-4 py-2 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleConsentContinue}
+                    className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                  >
+                    Agree & continue
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-        )}
-
-        <div className="flex flex-col items-center justify-center min-h-[70vh] w-full">
+        ) : (
           <div className="w-full flex flex-col items-center justify-center">
             {status === "idle" && (
               <div className="text-center max-w-lg flex flex-col items-center justify-center min-h-[70vh]">
@@ -439,8 +459,8 @@ export default function Record() {
             {status === "recording" && (
               <div className="w-full max-w-3xl flex flex-col items-center justify-center min-h-[70vh]">
                 <div className="text-center mb-10">
-                  <div className="inline-flex items-center px-5 py-2 bg-primary/10 text-primary rounded-full text-sm font-semibold mb-6">
-                    <span className="mr-2 inline-block w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                  <div className="inline-flex items-center px-6 py-3 bg-red-500/10 text-red-600 rounded-full text-base font-bold mb-6 border border-red-200 shadow-sm animate-pulse">
+                    <span className="mr-3 inline-block w-4 h-4 rounded-full bg-red-600 animate-ping" />
                     Recording in progress
                   </div>
                   <div className="scale-125 md:scale-150">
@@ -478,8 +498,7 @@ export default function Record() {
                 </div>
                 <h2 className="text-2xl font-bold text-foreground mb-2">Recording saved</h2>
                 <p className="text-muted-foreground mb-2 text-sm">
-                  Your audio is saved locally and linked to your appointment. It will be ready to send
-                  to the backend for transcription.
+                  Transcription will be available soon in your appointment details.
                 </p>
                 <p className="text-sm text-primary font-medium mb-8">{completedSummary}</p>
 
@@ -501,7 +520,7 @@ export default function Record() {
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </Layout>
   );

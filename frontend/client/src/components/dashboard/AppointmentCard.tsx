@@ -2,6 +2,7 @@ import { CalendarDays, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Appointment } from "@/lib/types";
 import { Link } from "wouter";
+import { useAppointments } from "@/context/AppointmentsContext";
 
 interface AppointmentCardProps {
   appointment: Appointment;
@@ -12,21 +13,31 @@ export function AppointmentCard({
   appointment,
   compact = false,
 }: AppointmentCardProps) {
+  const { appointments } = useAppointments();
   const hasDate = !!appointment.date;
   const date = hasDate ? new Date(appointment.date as string) : null;
+  const isLab = appointment.type === "lab";
+  const attachedProvider = appointment.attachedProviderId
+    ? appointments.find((a) => a.id === appointment.attachedProviderId)
+    : null;
 
   return (
     <div className="group relative bg-card rounded-lg border border-border hover:border-muted transition-all cursor-pointer">
-      <div className="absolute top-0 left-0 w-1 h-full bg-primary rounded-l-lg" />
+      <div className={cn(
+        "absolute top-0 left-0 w-1 h-full rounded-l-lg",
+        isLab ? "bg-blue-500" : "bg-primary"
+      )} />
 
       <div className="p-4 pl-5">
         <div className="flex justify-between items-start mb-2">
           <div>
             <h3 className="font-bold text-sm text-foreground">
-              {appointment.doctor || "Provider"}
+              {isLab ? (appointment.labType || appointment.doctor || "Lab Work") : (appointment.doctor || "Provider")}
             </h3>
             <p className="text-xs text-muted-foreground">
-              {appointment.specialty || "General"}
+              {isLab 
+                ? (attachedProvider ? `Attached to ${attachedProvider.doctor}` : "Lab Work")
+                : (appointment.specialty || "General")}
             </p>
           </div>
           <span
@@ -35,7 +46,9 @@ export function AppointmentCard({
               appointment.status === "completed"
                 ? "bg-muted text-muted-foreground"
                 : appointment.status === "upcoming"
-                ? "bg-primary/10 text-primary"
+                ? isLab
+                  ? "bg-blue-500/10 text-blue-600"
+                  : "bg-primary/10 text-primary"
                 : "bg-amber-100 text-amber-700", // cancelled / other
             )}
           >
@@ -67,7 +80,7 @@ export function AppointmentCard({
         {!compact && (
           <div className="mt-3 pt-3 border-t border-border">
             <p className="text-xs font-semibold text-foreground mb-1">
-              Reason
+              {isLab ? "Reason for lab" : "Reason"}
             </p>
             <p className="text-xs text-muted-foreground">
               {appointment.reason || "No reason provided"}

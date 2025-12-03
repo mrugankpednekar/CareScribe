@@ -29,6 +29,7 @@ function normalizeInitialAppointments(): Appointment[] {
 
     return {
       id: apt.id,
+      type: apt.type || "appointment",
       date: apt.date,
       doctor: apt.doctor || "New Provider",
       specialty: apt.specialty || "General",
@@ -38,6 +39,8 @@ function normalizeInitialAppointments(): Appointment[] {
       diagnosis: apt.diagnosis ?? [],
       instructions: apt.instructions ?? [],
       medications: apt.medications ?? [],
+      labType: apt.labType,
+      attachedProviderId: apt.attachedProviderId,
       transcriptIds: apt.transcriptIds ?? [],
       documentIds: apt.documentIds ?? [],
     } as Appointment;
@@ -75,6 +78,7 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
 
     const normalized: Appointment = {
       id,
+      type: appointment.type ?? "appointment",
       doctor: appointment.doctor || "New Provider",
       date: appointment.date,
       specialty: appointment.specialty ?? "General",
@@ -84,6 +88,8 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
       diagnosis: appointment.diagnosis ?? [],
       instructions: appointment.instructions ?? [],
       medications: appointment.medications ?? [],
+      labType: appointment.labType,
+      attachedProviderId: appointment.attachedProviderId,
       transcriptIds: appointment.transcriptIds ?? [],
       documentIds: appointment.documentIds ?? [],
     };

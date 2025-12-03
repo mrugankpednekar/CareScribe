@@ -7,16 +7,19 @@ import { TranscriptsProvider } from "@/context/TranscriptsContext";
 import { AppointmentsProvider } from "@/context/AppointmentsContext";
 import { DocumentsProvider } from "@/context/DocumentsContext";
 import { UserProfileProvider } from "@/context/UserProfileContext";
+import { MedicationsProvider } from "@/context/MedicationsContext";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <UserProfileProvider>
       <AppointmentsProvider>
-        <DocumentsProvider>
-          <TranscriptsProvider>
-            <App />
-          </TranscriptsProvider>
-        </DocumentsProvider>
+        <MedicationsProvider>
+          <DocumentsProvider>
+            <TranscriptsProvider>
+              <App />
+            </TranscriptsProvider>
+          </DocumentsProvider>
+        </MedicationsProvider>
       </AppointmentsProvider>
     </UserProfileProvider>
   </React.StrictMode>,

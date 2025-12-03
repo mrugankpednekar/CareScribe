@@ -17,6 +17,8 @@ import { AppointmentsProvider } from "@/context/AppointmentsContext";
 import { DocumentsProvider } from "@/context/DocumentsContext";
 import { TranscriptsProvider } from "@/context/TranscriptsContext";
 import { UserProfileProvider } from "@/context/UserProfileContext";
+import { MedicationsProvider } from "@/context/MedicationsContext";
+import { CalendarProvider } from "@/context/CalendarContext";
 
 function Router() {
   return (
@@ -42,12 +44,16 @@ function App() {
       <TooltipProvider>
         <UserProfileProvider>
           <AppointmentsProvider>
-            <DocumentsProvider>
-              <TranscriptsProvider>
-                <Toaster />
-                <Router />
-              </TranscriptsProvider>
-            </DocumentsProvider>
+            <MedicationsProvider>
+              <CalendarProvider>
+                <DocumentsProvider>
+                  <TranscriptsProvider>
+                    <Toaster />
+                    <Router />
+                  </TranscriptsProvider>
+                </DocumentsProvider>
+              </CalendarProvider>
+            </MedicationsProvider>
           </AppointmentsProvider>
         </UserProfileProvider>
       </TooltipProvider>

@@ -12,6 +12,7 @@ import { useAppointments } from "@/context/AppointmentsContext";
 interface DocumentsContextValue {
   documents: DocumentMeta[];
   addDocument: (doc: Omit<DocumentMeta, "id" | "uploadedAt">) => DocumentMeta;
+  updateDocument: (id: string, updates: Partial<DocumentMeta>) => DocumentMeta | undefined; // NEW
   attachDocumentToAppointment: (docId: string, appointmentId?: string) => void;
   detachDocumentsFromAppointment: (appointmentId: string) => void;
   deleteDocument: (docId: string) => void;
@@ -110,6 +111,21 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     return normalized;
   };
 
+  // NEW: Update document function
+  const updateDocument = (id: string, updates: Partial<DocumentMeta>): DocumentMeta | undefined => {
+    let updatedDoc: DocumentMeta | undefined;
+
+    setDocuments((prev) =>
+      prev.map((doc) => {
+        if (doc.id !== id) return doc;
+        updatedDoc = { ...doc, ...updates };
+        return updatedDoc;
+      }),
+    );
+
+    return updatedDoc;
+  };
+
   /**
    * Attach a document to an appointment, or detach if appointmentId is undefined.
    * - When attaching, ensures only the target appointment has this docId in its documentIds.
@@ -185,11 +201,12 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     () => ({
       documents,
       addDocument,
+      updateDocument, // Include in context value
       attachDocumentToAppointment,
       detachDocumentsFromAppointment,
       deleteDocument,
     }),
-    [documents, addDocument, attachDocumentToAppointment, detachDocumentsFromAppointment, deleteDocument],
+    [documents],
   );
 
   return (

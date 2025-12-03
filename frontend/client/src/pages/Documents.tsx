@@ -16,24 +16,23 @@ import { Input } from "@/components/ui/input";
 import type { DocumentMeta } from "@/lib/types";
 
 export default function Documents() {
-  const { appointments } = useAppointments();
+  const { appointments, updateAppointment } = useAppointments();
   const {
     documents,
     addDocument,
-    attachDocumentToAppointment,
     deleteDocument,
+    updateDocument,
+    detachDocumentsFromAppointment,
   } = useDocuments();
 
+  // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
-  const [targetAppointmentId, setTargetAppointmentId] =
-    useState<string | "none">("none");
+  const [targetAppointmentId, setTargetAppointmentId] = useState<string | "none">(
+    "none",
+  );
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const [confirmingDocId, setConfirmingDocId] = useState<string | null>(null);
-
-  // Search
   const [searchQuery, setSearchQuery] = useState("");
 
   // Export full report state
@@ -54,55 +53,85 @@ export default function Documents() {
     [documents],
   );
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] ?? null;
-    setSelectedFile(file);
+  const handleUploadClick = () => {
+    setShowUploadModal(true);
+    setUploadingFile(null);
+    setFileName("");
+    setTargetAppointmentId("none");
     setUploadError(null);
-
-    if (file) {
-      setFileName(file.name);
-    } else {
-      setFileName("");
-    }
   };
 
-  const handleUpload = () => {
-    if (!selectedFile) {
-      setUploadError("Please choose a file to upload.");
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    setUploadingFile(file);
+    setFileName(file?.name || "");
+    setUploadError(null);
+  };
+
+  const handleUpload = async () => {
+    if (!uploadingFile) {
+      setUploadError("Please select a file first.");
       return;
     }
 
-    setUploadError(null);
+    try {
+      const file = uploadingFile;
+      const reader = new FileReader();
 
-    const file = selectedFile;
-    const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const name = fileName.trim() || file.name;
 
-    reader.onloadend = () => {
-      const dataUrl = reader.result as string;
-      const name = fileName.trim() || file.name;
+        const docInput: Omit<DocumentMeta, "id" | "uploadedAt"> = {
+          name,
+          sizeBytes: file.size,
+          mimeType: file.type || "application/octet-stream",
+          appointmentId:
+            targetAppointmentId === "none" ? undefined : targetAppointmentId,
+          downloadUrl: dataUrl,
+        };
 
-      const docInput: Omit<DocumentMeta, "id" | "uploadedAt"> = {
-        name,
-        sizeBytes: file.size,
-        mimeType: file.type || "application/octet-stream",
-        appointmentId:
-          targetAppointmentId === "none" ? undefined : targetAppointmentId,
-        downloadUrl: dataUrl,
+        const created = addDocument(docInput);
+
+        if (targetAppointmentId !== "none") {
+          // Find the appointment and add the document ID to its documentIds
+          const apt = appointments.find(a => a.id === targetAppointmentId);
+          if (apt) {
+            const currentIds = apt.documentIds ?? [];
+            const updatedIds = [...currentIds, created.id];
+            updateAppointment(apt.id, { documentIds: updatedIds });
+          }
+        }
+
+        setShowUploadModal(false);
+        setUploadingFile(null);
+        setFileName("");
+        setTargetAppointmentId("none");
+        setUploadError(null);
       };
 
-      const created = addDocument(docInput);
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error(err);
+      setUploadError("Something went wrong while reading the file.");
+    }
+  };
 
-      if (targetAppointmentId !== "none") {
-        attachDocumentToAppointment(created.id, targetAppointmentId);
-      }
+  const handleDelete = (id: string) => {
+    detachDocumentsFromAppointment(id);
+    deleteDocument(id);
+  };
 
-      setSelectedFile(null);
-      setFileName("");
-      setTargetAppointmentId("none");
-      setShowUploadModal(false);
-    };
+  const handleRename = (id: string, newName: string) => {
+    updateDocument(id, { name: newName });
+  };
 
-    reader.readAsDataURL(file);
+  const handleOpenPreview = (doc: DocumentMeta) => {
+    setPreviewDoc(doc);
+  };
+
+  const handleClosePreview = () => {
+    setPreviewDoc(null);
   };
 
   const handleDownload = (doc: DocumentMeta) => {
@@ -128,10 +157,27 @@ export default function Documents() {
     if (!apt) {
       return "Linked appointment not found";
     }
+    const isLab = apt.type === "lab";
     const dateLabel = apt.date
       ? new Date(apt.date).toLocaleDateString()
       : "No date";
-    return `${apt.doctor || "Provider"} • ${dateLabel}`;
+
+    if (isLab) {
+      const orderedBy =
+        apt.attachedProviderId &&
+        appointments.find((a) => a.id === apt.attachedProviderId)?.doctor;
+
+      const base = apt.labType || "Lab work";
+      if (orderedBy) {
+        return `${base} (Lab, ordered by ${orderedBy}) • ${dateLabel}`;
+      }
+      return `${base} (Lab) • ${dateLabel}`;
+    }
+
+    const providerLabel = `${apt.doctor || "Provider"}${apt.specialty ? ` - ${apt.specialty}` : ""
+      }`;
+
+    return `${providerLabel} • ${dateLabel}`;
   };
 
   // --- SEARCH LOGIC ---
@@ -140,37 +186,36 @@ export default function Documents() {
     (value ?? "").toLowerCase().trim();
 
   const matchesSearch = (doc: DocumentMeta) => {
+    if (!searchQuery.trim()) return true;
     const q = normalize(searchQuery);
-    if (!q) return true;
 
     const apt = doc.appointmentId
       ? appointments.find((a) => a.id === doc.appointmentId)
       : undefined;
 
-    const aptDateIso = apt?.date ?? "";
-    const aptDateHuman =
-      apt?.date && !Number.isNaN(new Date(apt.date).getTime())
-        ? new Date(apt.date).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
-        : "";
+    const doctor = normalize(apt?.doctor);
+    const specialty = normalize(apt?.specialty);
+    const labType = normalize(apt?.labType);
+    const docName = normalize(doc.name);
+    const mime = normalize(doc.mimeType);
 
-    const uploadedDateIso = doc.uploadedAt ?? "";
-    const uploadedDateHuman =
-      doc.uploadedAt && !Number.isNaN(new Date(doc.uploadedAt).getTime())
-        ? new Date(doc.uploadedAt).toLocaleDateString("en-US", {
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
-        : "";
+    const uploadedDateIso = doc.uploadedAt;
+    const uploadedDateHuman = uploadedDateIso
+      ? new Date(uploadedDateIso).toLocaleDateString()
+      : "";
+
+    const aptDateIso = apt?.date;
+    const aptDateHuman = aptDateIso
+      ? new Date(aptDateIso).toLocaleDateString()
+      : "";
 
     const haystack = normalize(
       [
-        doc.name,
-        apt?.doctor,
+        docName,
+        mime,
+        doctor,
+        specialty,
+        labType,
         aptDateIso,
         aptDateHuman,
         uploadedDateIso,
@@ -186,26 +231,36 @@ export default function Documents() {
 
   // --- ATTACH / RE-ATTACH AFTER UPLOAD ---
 
-  const handleDeleteClick = (docId: string) => {
-    setConfirmingDocId((current) => (current === docId ? null : docId));
-  };
-
-  const handleConfirmDelete = (docId: string) => {
-    deleteDocument(docId);
-    setConfirmingDocId(null);
-  };
-
   const handleChangeAttachment = (docId: string, appointmentId: string) => {
-  if (appointmentId === "none") {
-    // detach
-    attachDocumentToAppointment(docId, undefined);
-    return;
-  }
+    // Update the document's own metadata
+    updateDocument(docId, { appointmentId: appointmentId === "none" ? undefined : appointmentId });
 
-  // attach normally
-  attachDocumentToAppointment(docId, appointmentId);
-};
+    if (appointmentId === "none") {
+      // Detach from all appointments
+      appointments.forEach(apt => {
+        if (apt.documentIds?.includes(docId)) {
+          const updatedIds = apt.documentIds.filter(id => id !== docId);
+          updateAppointment(apt.id, { documentIds: updatedIds });
+        }
+      });
+      return;
+    }
 
+    // Attach to specific appointment and remove from others
+    appointments.forEach(apt => {
+      const currentIds = apt.documentIds ?? [];
+      if (apt.id === appointmentId) {
+        // Add to this appointment if not already there
+        if (!currentIds.includes(docId)) {
+          updateAppointment(apt.id, { documentIds: [...currentIds, docId] });
+        }
+      } else if (currentIds.includes(docId)) {
+        // Remove from other appointments
+        const updatedIds = currentIds.filter(id => id !== docId);
+        updateAppointment(apt.id, { documentIds: updatedIds });
+      }
+    });
+  };
 
   // --- FULL REPORT EXPORT (PDF from backend) ---
 
@@ -235,14 +290,43 @@ export default function Documents() {
     }
   };
 
-  // --- SUMMARY GENERATION PER DOC (PDF download) ---
+  const handleDeleteClick = (id: string) => {
+    setConfirmingDocId(id);
+  };
+
+  const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmingDocId, setConfirmingDocId] = useState<string | null>(null);
+
+  const startRenaming = (doc: DocumentMeta) => {
+    setRenamingDocId(doc.id);
+    setRenameValue(doc.name);
+  };
+
+  const handleRenameSubmit = (docId: string) => {
+    if (!renameValue.trim()) return;
+    handleRename(docId, renameValue.trim());
+    setRenamingDocId(null);
+  };
+
+  const handleConfirmDelete = (id: string) => {
+    handleDelete(id);
+    setConfirmingDocId(null);
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmingDocId(null);
+  };
 
   const handleGenerateSummary = async (doc: DocumentMeta) => {
     try {
       setSummaryLoadingId(doc.id);
 
-      // Backend should return a PDF summary for this doc
-      const res = await fetch(`/api/documents/${doc.id}/summary`);
+      // Call backend endpoint to generate a summary PDF
+      const res = await fetch(`/api/documents/${doc.id}/summary`, {
+        method: "POST",
+      });
+
       if (!res.ok) {
         throw new Error("Failed to generate summary");
       }
@@ -263,15 +347,11 @@ export default function Documents() {
     }
   };
 
-  // --- PREVIEW DOC MODAL ---
+  const isSummaryLoading = (docId: string) => summaryLoadingId === docId;
 
-  const canInlinePreview = (doc: DocumentMeta) =>
-    !!doc.downloadUrl &&
-    (doc.mimeType?.startsWith("image/") ||
-      doc.mimeType === "application/pdf" ||
-      doc.name?.toLowerCase().endsWith(".pdf"));
+  const renderPreviewContent = (doc: DocumentMeta | null) => {
+    if (!doc) return null;
 
-  const renderPreviewContent = (doc: DocumentMeta) => {
     if (!doc.downloadUrl) {
       return (
         <p className="text-sm text-muted-foreground">
@@ -292,10 +372,7 @@ export default function Documents() {
       );
     }
 
-    if (
-      doc.mimeType === "application/pdf" ||
-      doc.name?.toLowerCase().endsWith(".pdf")
-    ) {
+    if (doc.mimeType === "application/pdf") {
       return (
         <iframe
           src={doc.downloadUrl}
@@ -307,56 +384,68 @@ export default function Documents() {
 
     return (
       <p className="text-sm text-muted-foreground">
-        Inline preview isn&apos;t available for this file type, but you can
-        download it instead.
+        Preview not available for this file type. Try downloading it instead.
       </p>
     );
   };
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto py-10 px-4 md:px-0 space-y-8">
-        <div className="flex items-center justify-between gap-4">
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold text-foreground mb-1">
-              Documents
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Documents & Reports
             </h1>
             <p className="text-sm text-muted-foreground">
-              Upload visit summaries, lab reports, referrals, and keep them
-              linked to the right appointments.
+              Upload lab reports, visit summaries, and other health documents.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowUploadModal(true);
-              setUploadError(null);
-            }}
-            className="inline-flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-semibold shadow-sm hover:bg-primary/90"
-          >
-            <Upload className="w-4 h-4" />
-            Upload document
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateFullReport}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-primary/60 text-xs font-medium text-primary hover:bg-primary/5 disabled:opacity-60"
+            >
+              <Sparkles className="w-4 h-4" />
+              {isExporting ? "Generating..." : "Export full history"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleUploadClick}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+            >
+              <Upload className="w-4 h-4" />
+              Upload document
+            </button>
+          </div>
         </div>
 
-        <section className="rounded-2xl border border-border bg-card p-5">
+        {/* Document list */}
+        <div className="bg-card border border-border rounded-2xl p-4 md:p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">
-              Your documents
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {sortedDocuments.length} file
-              {sortedDocuments.length === 1 ? "" : "s"}
-            </p>
-          </div>
-
-          {/* Loading bar for summary generation */}
-          {summaryLoadingId && (
-            <div className="mb-4 h-1 w-full rounded-full bg-muted overflow-hidden">
-              <div className="h-full w-1/3 animate-pulse bg-primary" />
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Your documents
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {sortedDocuments.length} file
+                {sortedDocuments.length === 1 ? "" : "s"}
+              </p>
             </div>
-          )}
+
+            {/* Loading bar for summary generation */}
+            {summaryLoadingId && (
+              <div className="mb-4 h-1 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full w-1/3 animate-pulse bg-primary" />
+              </div>
+            )}
+          </div>
 
           {/* Search bar */}
           {sortedDocuments.length > 0 && (
@@ -390,90 +479,128 @@ export default function Documents() {
               <button
                 type="button"
                 onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold hover:bg-muted"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
               >
-                <Upload className="w-3 h-3" />
+                <Upload className="w-4 h-4" />
                 Upload a document
               </button>
             </div>
           ) : (
             <div className="space-y-3">
               {filteredDocuments.map((doc) => {
+                const isRenaming = renamingDocId === doc.id;
                 const isConfirming = confirmingDocId === doc.id;
-                const sizeLabel =
-                  doc.sizeBytes && doc.sizeBytes > 0
-                    ? `${(doc.sizeBytes / (1024 * 1024)).toFixed(1)} MB`
-                    : undefined;
-
-                const isSummaryLoading = summaryLoadingId === doc.id;
+                const sizeLabel = doc.sizeBytes
+                  ? `${Math.round(doc.sizeBytes / 1024)} KB`
+                  : "";
 
                 return (
                   <div
                     key={doc.id}
-                    className="relative flex items-center justify-between gap-4 rounded-xl border border-border bg-background px-4 py-3"
+                    className="relative flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 hover:bg-muted/60 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-primary" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {doc.name}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground truncate">
-                          {doc.mimeType || "Document"}
-                          {sizeLabel ? ` • ${sizeLabel}` : ""}
-                        </p>
-
-                        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                          <p className="text-[11px] text-muted-foreground truncate">
-                            {resolveAppointmentLabel(doc)}
-                          </p>
-
-                          {appointments.length > 0 && (
-                            <select
-                              value={doc.appointmentId ?? "none"}
-                              onChange={(e) => handleChangeAttachment(doc.id, e.target.value)}
-                              className="text-[12px] border border-border bg-background rounded-lg px-2 py-1 h-9 max-w-[260px] font-medium"
-                             >
-                              <option value="none">None</option>
-                              {appointments.map((apt) => (
-                                <option key={apt.id} value={apt.id}>
-                                  {apt.doctor || "Provider"} •{" "}
-                                  {apt.date ? new Date(apt.date).toLocaleDateString() : "No date"}
-                                </option>
-                              ))}
-                            </select>
-
-                          )}
-                        </div>
-                      </div>
+                    <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {doc.uploadedAt && (
-                        <span className="text-[11px] text-muted-foreground">
-                          {new Date(doc.uploadedAt).toLocaleDateString()}
-                        </span>
-                      )}
+                    <div className="flex-1 min-w-0">
+                      {isRenaming ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            className="h-8 text-xs"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleRenameSubmit(doc.id);
+                              }
+                              if (e.key === "Escape") {
+                                setRenamingDocId(null);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRenameSubmit(doc.id)}
+                            className="text-xs font-semibold text-primary hover:underline"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRenamingDocId(null)}
+                            className="text-xs text-muted-foreground hover:text-foreground"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm font-medium text-foreground truncate">
+                            {doc.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {doc.mimeType || "Document"}
+                            {sizeLabel ? ` • ${sizeLabel}` : ""}
+                          </p>
 
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                            <p className="text-[11px] text-muted-foreground truncate">
+                              {resolveAppointmentLabel(doc)}
+                            </p>
+
+                            {appointments.length > 0 && (
+                              <select
+                                value={doc.appointmentId ?? "none"}
+                                onChange={(e) =>
+                                  handleChangeAttachment(doc.id, e.target.value)
+                                }
+                                className="text-[12px] border border-border bg-background rounded-lg px-2 py-1 h-9 max-w-[260px] font-medium"
+                              >
+                                <option value="none">None</option>
+                                {appointments.map((apt) => {
+                                  const isLab = apt.type === "lab";
+                                  const dateLabel = apt.date
+                                    ? new Date(apt.date).toLocaleDateString()
+                                    : "No date";
+                                  const label = isLab
+                                    ? `${apt.labType || "Lab work"} (Lab) • ${dateLabel}`
+                                    : `${apt.doctor || "Provider"}${apt.specialty
+                                      ? ` - ${apt.specialty}`
+                                      : ""
+                                    } • ${dateLabel}`;
+                                  return (
+                                    <option key={apt.id} value={apt.id}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 ml-2">
                       {/* Preview icon */}
                       <button
                         type="button"
-                        onClick={() => setPreviewDoc(doc)}
-                        className="p-2 rounded-full border border-border hover:bg-muted disabled:opacity-40"
-                        disabled={!canInlinePreview(doc)}
+                        onClick={() => handleOpenPreview(doc)}
+                        className="p-2 rounded-full hover:bg-muted"
                         aria-label="Preview document"
                       >
-                        <Eye className="w-5 h-5 text-foreground" />
+                        <Eye className="w-5 h-5 text-muted-foreground" />
                       </button>
 
-                      {/* Generate summary icon (AI) */}
+                      {/* AI summary icon */}
                       <button
                         type="button"
                         onClick={() => handleGenerateSummary(doc)}
-                        className="p-2 rounded-full border border-border hover:bg-muted disabled:opacity-40"
-                        disabled={isSummaryLoading}
+                        disabled={isSummaryLoading(doc.id)}
+                        className="p-2 rounded-full hover:bg-muted disabled:opacity-40"
                         aria-label="Generate AI summary"
                       >
                         <Sparkles className="w-5 h-5 text-foreground" />
@@ -502,7 +629,7 @@ export default function Documents() {
                     </div>
 
                     {isConfirming && (
-                      <div className="absolute right-3 top-11 z-20 rounded-md border border-border bg-card shadow-md px-3 py-2 flex items-center gap-2">
+                      <div className="absolute right-3 top-3 bg-card border border-border shadow-md px-3 py-2 flex items-center gap-2 rounded-xl">
                         <span className="text-[11px] text-muted-foreground">
                           Delete this document?
                         </span>
@@ -515,7 +642,7 @@ export default function Documents() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConfirmingDocId(null)}
+                          onClick={handleCancelDelete}
                           className="text-[11px] text-muted-foreground hover:text-foreground"
                         >
                           Cancel
@@ -527,78 +654,69 @@ export default function Documents() {
               })}
             </div>
           )}
-        </section>
-
-        <div className="mt-8 p-6 bg-secondary/30 rounded-2xl border border-dashed border-border text-center">
-          <h3 className="font-bold text-foreground mb-2">Export History</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Download your full medical timeline for a new doctor.
-          </p>
-          <button
-            className="px-6 py-2 bg-card border border-border rounded-lg text-sm font-medium shadow-sm hover:bg-secondary transition-colors disabled:opacity-60"
-            onClick={handleGenerateFullReport}
-            disabled={isExporting}
-          >
-            {isExporting ? "Generating..." : "Generate Full Report"}
-          </button>
         </div>
 
         {/* Upload Modal */}
         {showUploadModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-card rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg border border-border relative">
-              <button
-                type="button"
-                className="absolute right-3 top-3 p-1 rounded-full hover:bg-muted"
-                onClick={() => {
-                  setShowUploadModal(false);
-                }}
-                aria-label="Close upload"
-              >
-                <X className="w-4 h-4 text-muted-foreground" />
-              </button>
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-xl">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-primary" />
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Upload a document
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadingFile(null);
+                    setFileName("");
+                    setUploadError(null);
+                    setTargetAppointmentId("none");
+                  }}
+                  className="p-1 rounded-full hover:bg-muted"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
 
-              <h2 className="text-lg font-semibold text-foreground mb-1">
-                Upload document
-              </h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                Choose a file, give it a clear name, and optionally attach it to
-                an appointment.
-              </p>
-
-              <div className="space-y-3 mb-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
                     File
                   </label>
-                  <input
-                    type="file"
-                    onChange={handleFileChange}
-                    className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border file:border-border file:text-xs file:font-medium file:bg-card file:text-foreground hover:file:bg-muted"
-                    accept=".pdf,.doc,.docx,.txt,.rtf,.png,.jpg,.jpeg,.gif,.heic"
-                  />
-                  {selectedFile && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      onChange={handleFileChange}
+                      className="block w-full text-xs text-muted-foreground file:mr-2 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    />
+                  </div>
+                  {uploadingFile && (
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Selected: {selectedFile.name}
+                      Selected: {uploadingFile.name} (
+                      {Math.round(uploadingFile.size / 1024)} KB)
                     </p>
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Document name
                   </label>
-                  <input
-                    type="text"
+                  <Input
                     value={fileName}
                     onChange={(e) => setFileName(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
-                    placeholder="e.g. Lab Results - June 2025"
+                    placeholder="e.g. Lab results - July 2024"
+                    className="h-8 text-xs"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-foreground">
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
                     Attach to appointment (optional)
                   </label>
                   <select
@@ -611,36 +729,48 @@ export default function Documents() {
                     className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs"
                   >
                     <option value="none">Don&apos;t attach</option>
-                    {appointments.map((apt) => (
-                      <option key={apt.id} value={apt.id}>
-                        {apt.doctor || "Provider"} •{" "}
-                        {apt.date
-                          ? new Date(apt.date).toLocaleDateString()
-                          : "No date"}
-                      </option>
-                    ))}
+                    {appointments.map((apt) => {
+                      const isLab = apt.type === "lab";
+                      const dateLabel = apt.date
+                        ? new Date(apt.date).toLocaleDateString()
+                        : "No date";
+                      const label = isLab
+                        ? `${apt.labType || "Lab work"} (Lab) • ${dateLabel}`
+                        : `${apt.doctor || "Provider"}${apt.specialty ? ` - ${apt.specialty}` : ""
+                        } • ${dateLabel}`;
+                      return (
+                        <option key={apt.id} value={apt.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
+
+                {uploadError && (
+                  <p className="text-[11px] text-red-500">{uploadError}</p>
+                )}
               </div>
 
-              {uploadError && (
-                <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-700">
-                  {uploadError}
-                </div>
-              )}
-
-              <div className="flex gap-2 justify-end mt-2">
+              <div className="flex justify-end gap-2 border-t border-border px-4 py-3">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium hover:bg-muted"
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setUploadingFile(null);
+                    setFileName("");
+                    setUploadError(null);
+                    setTargetAppointmentId("none");
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted/60"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleUpload}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90"
+                  className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 disabled:opacity-60"
+                  disabled={!uploadingFile}
                 >
                   Upload
                 </button>
@@ -651,23 +781,18 @@ export default function Documents() {
 
         {/* Preview Modal */}
         {previewDoc && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-            <div className="bg-card rounded-2xl border border-border max-w-4xl w-full mx-4 shadow-xl flex flex-col max-h-[90vh]">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-card w-full max-w-3xl rounded-2xl border border-border shadow-xl max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">
-                      {previewDoc.name}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      Preview
-                    </p>
-                  </div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {previewDoc.name}
+                  </h3>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setPreviewDoc(null)}
+                  onClick={handleClosePreview}
                   className="p-1 rounded-full hover:bg-muted"
                   aria-label="Close preview"
                 >
