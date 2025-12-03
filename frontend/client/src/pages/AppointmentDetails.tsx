@@ -54,6 +54,7 @@ export default function AppointmentDetails() {
   const [confirmingTranscriptId, setConfirmingTranscriptId] = useState<string | null>(
     null,
   );
+  const [processingTranscript, setProcessingTranscript] = useState(false);
   const [previewTranscript, setPreviewTranscript] = useState<Transcript | null>(null);
   const [previewDocument, setPreviewDocument] = useState<DocumentMeta | null>(null);
 
@@ -269,6 +270,52 @@ export default function AppointmentDetails() {
       document.body.removeChild(link);
     } catch {
       // ignore
+    }
+  };
+
+  const handleProcessTranscript = async () => {
+    if (!appointmentTranscripts.length || processingTranscript) return;
+
+    setProcessingTranscript(true);
+    try {
+      // Try to get backend ID from transcript, otherwise look up by appointment
+      const firstTranscript = appointmentTranscripts[0] as any;
+      let transcriptId = firstTranscript.backendId;
+
+      // If no backend ID stored, try to find transcription by appointmentId
+      if (!transcriptId) {
+        const response = await fetch(`/api/transcriptions?appointmentId=${appointment.id}`);
+        if (response.ok) {
+          const transcriptions = await response.json();
+          if (transcriptions.length > 0) {
+            transcriptId = transcriptions[0].id;
+          }
+        }
+      }
+
+      if (!transcriptId) {
+        alert("Cannot find backend transcription. Please re-record this appointment.");
+        setProcessingTranscript(false);
+        return;
+      }
+
+      const response = await fetch(`/api/transcriptions/${transcriptId}/process`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to process transcript");
+      }
+
+      const result = await response.json();
+      console.log("AI Processing Result:", result);
+
+      window.location.reload();
+    } catch (error) {
+      console.error("Manual AI processing error:", error);
+      alert("Failed to process transcript. Please try again.");
+    } finally {
+      setProcessingTranscript(false);
     }
   };
 
@@ -596,6 +643,28 @@ export default function AppointmentDetails() {
             </p>
           )}
         </section>
+
+        {/* AI Process Button */}
+        {appointmentTranscripts.length > 0 && (
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-foreground mb-1">
+                  Auto-fill from transcript
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Use AI to extract medications, tasks, and follow-ups from your recording.
+                </p>
+              </div>
+              <button
+                onClick={handleProcessTranscript}
+                disabled={processingTranscript}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
+                {processingTranscript ? "Processing..." : "Process Transcript"}
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Transcripts */}
         <section className="rounded-2xl border border-border bg-card p-5 flex flex-col">

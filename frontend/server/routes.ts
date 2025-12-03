@@ -9,6 +9,7 @@ import {
 } from "@shared/schema";
 import multer from "multer";
 import { transcribeAudio } from "./transcription";
+import { processTranscript } from "./llm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -129,11 +130,91 @@ export async function registerRoutes(
         status: "completed",
       });
 
+      // 3. Process with AI to extract data
+      try {
+        const processed = await processTranscript(transcriptText);
+        console.log("AI Processed Data:", processed);
+
+        if (appointmentId) {
+          // Check if appointment exists first
+          const existingApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
+
+          if (existingApt) {
+            // Update Appointment details
+            await storage.updateAppointment(appointmentId, {
+              diagnosis: processed.diagnosis ? [processed.diagnosis] : undefined,
+              notes: processed.notes || undefined,
+              instructions: processed.instructions ? [processed.instructions] : undefined,
+            });
+
+            // Create Medications
+            for (const med of processed.medications) {
+              await storage.createMedication({
+                userId,
+                name: med.name,
+                dosage: med.dosage,
+                frequency: med.frequency,
+                reason: med.reason,
+                active: true,
+                appointmentId,
+              });
+            }
+
+            // Create Tasks
+            for (const task of processed.tasks) {
+              await storage.createTask({
+                userId,
+                title: task.title,
+                type: "general",
+                due: task.due || new Date().toISOString(),
+                completed: false,
+              });
+            }
+
+            // Create Follow-up Appointment
+            if (processed.followUp && processed.followUp.date) {
+              // Find the doctor name from the current appointment to reuse
+              const currentApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
+
+              await storage.createAppointment({
+                userId,
+                doctor: currentApt?.doctor || "Dr. Smith",
+                specialty: currentApt?.specialty || "General",
+                date: processed.followUp.date,
+                reason: processed.followUp.reason || "Follow-up",
+                status: "upcoming",
+                diagnosis: null,
+                notes: null,
+                instructions: null
+              });
+            }
+          }
+        }
+      } catch (aiError) {
+        console.error("AI Processing failed:", aiError);
+        // Don't fail the request if AI processing fails, just log it
+      }
+
       res.json(transcription);
     } catch (error) {
       console.error("Transcription error:", error);
       res.status(500).json({ message: "Failed to process transcription" });
     }
+  });
+
+  // Get transcriptions (with optional appointmentId filter)
+  app.get("/api/transcriptions", async (req, res) => {
+    const userId = "user-1";
+    const appointmentId = req.query.appointmentId as string | undefined;
+
+    const allTranscriptions = await storage.getTranscriptions(userId);
+
+    if (appointmentId) {
+      const filtered = allTranscriptions.filter(t => t.appointmentId === appointmentId);
+      return res.json(filtered);
+    }
+
+    res.json(allTranscriptions);
   });
 
   app.get("/api/transcriptions/:id", async (req, res) => {
@@ -142,6 +223,106 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Transcription not found" });
     }
     res.json(transcription);
+  });
+
+  // Process an existing transcript with AI
+  app.post("/api/transcriptions/:id/process", async (req, res) => {
+    try {
+      const userId = "user-1";
+      const transcription = await storage.getTranscription(req.params.id);
+
+      if (!transcription) {
+        return res.status(404).json({ message: "Transcription not found" });
+      }
+
+      if (!transcription.transcript) {
+        return res.status(400).json({ message: "No transcript text available" });
+      }
+
+      const processed = await processTranscript(transcription.transcript);
+      console.log("Manual AI Processing:", processed);
+
+      const appointmentId = transcription.appointmentId;
+
+      if (appointmentId) {
+        // Get existing appointment data to check for duplicates
+        const existingApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
+        const existingMeds = await storage.getMedications(userId);
+        const existingTasks = await storage.getTasks(userId);
+
+        // Update Appointment details (merge, don't overwrite)
+        await storage.updateAppointment(appointmentId, {
+          diagnosis: processed.diagnosis ? [processed.diagnosis] : undefined,
+          notes: processed.notes || undefined,
+          instructions: processed.instructions ? [processed.instructions] : undefined,
+        });
+
+        // Create Medications (check for duplicates by name)
+        for (const med of processed.medications) {
+          const duplicate = existingMeds.find(
+            m => m.name.toLowerCase() === med.name.toLowerCase() &&
+              m.dosage === med.dosage &&
+              m.appointmentId === appointmentId
+          );
+          if (!duplicate) {
+            await storage.createMedication({
+              userId,
+              name: med.name,
+              dosage: med.dosage,
+              frequency: med.frequency,
+              reason: med.reason,
+              active: true,
+              appointmentId,
+            });
+          }
+        }
+
+        // Create Tasks (check for duplicates by title)
+        for (const task of processed.tasks) {
+          const duplicate = existingTasks.find(
+            t => t.title.toLowerCase() === task.title.toLowerCase() &&
+              !t.completed
+          );
+          if (!duplicate) {
+            await storage.createTask({
+              userId,
+              title: task.title,
+              type: "general",
+              due: task.due || new Date().toISOString(),
+              completed: false,
+            });
+          }
+        }
+
+        // Create Follow-up Appointment (check for duplicates by date and reason)
+        if (processed.followUp && processed.followUp.date) {
+          const allApts = await storage.getAppointments(userId);
+          const duplicateApt = allApts.find(
+            a => a.date === processed.followUp!.date &&
+              a.reason.toLowerCase().includes('follow')
+          );
+
+          if (!duplicateApt && existingApt) {
+            await storage.createAppointment({
+              userId,
+              doctor: existingApt.doctor || "Dr. Smith",
+              specialty: existingApt.specialty || "General",
+              date: processed.followUp.date,
+              reason: processed.followUp.reason || "Follow-up",
+              status: "upcoming",
+              diagnosis: null,
+              notes: null,
+              instructions: null
+            });
+          }
+        }
+      }
+
+      res.json({ success: true, processed });
+    } catch (error) {
+      console.error("Manual AI processing error:", error);
+      res.status(500).json({ message: "Failed to process transcript" });
+    }
   });
 
   return httpServer;

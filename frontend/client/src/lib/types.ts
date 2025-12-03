@@ -91,6 +91,7 @@ export interface Transcript {
   title: string;
   lines: string[];
   documentId?: string; // Link to the corresponding document
+  backendId?: string; // Backend transcription ID for API calls
 }
 // ---------------------------
 // Calendar + Checklist Types

@@ -120,11 +120,12 @@ export default function Record() {
               });
 
               // 2. Create Transcript linked to Document
-              // We use the text returned from backend
+              // We use the text returned from backend AND store the backend ID
               const transcript = addTranscript({
                 appointmentId: attachedAppointmentId,
                 lines: transcription.transcript ? transcription.transcript.split("\n") : ["Processing..."],
-                documentId: doc.id
+                documentId: doc.id,
+                backendId: transcription.id // Store backend ID for processing
               });
 
               // 3. Update Appointment
