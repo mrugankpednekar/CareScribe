@@ -10,9 +10,9 @@ import type { Transcript } from "@/lib/types";
 
 interface TranscriptsContextValue {
   transcripts: Transcript[];
-  addTranscript: (input: { appointmentId: string; lines: string[] }) => Transcript;
+  addTranscript: (input: { appointmentId: string; lines: string[]; documentId?: string }) => Transcript;
   deleteTranscriptsForAppointment: (appointmentId: string) => void;
-  deleteTranscript: (transcriptId: string) => void; // 👈 NEW
+  deleteTranscript: (transcriptId: string) => void;
 }
 
 
@@ -44,7 +44,7 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
     }
   }, [transcripts]);
 
-  const addTranscript = (input: { appointmentId: string; lines: string[] }): Transcript => {
+  const addTranscript = (input: { appointmentId: string; lines: string[]; documentId?: string }): Transcript => {
     const id = `tr-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString()}`;
     const createdAt = new Date().toISOString();
     const title = `Visit transcript - ${new Date().toLocaleString()}`;
@@ -55,6 +55,7 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
       createdAt,
       title,
       lines: input.lines,
+      documentId: input.documentId,
     };
 
     setTranscripts((prev) => [...prev, transcript]);
@@ -62,13 +63,13 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteTranscriptsForAppointment = (appointmentId: string) => {
-    setTranscripts(prev => 
+    setTranscripts(prev =>
       prev.filter(transcript => transcript.appointmentId !== appointmentId)
     );
   };
 
   const deleteTranscript = (transcriptId: string) => {
-  setTranscripts((prev) => prev.filter((t) => t.id !== transcriptId));
+    setTranscripts((prev) => prev.filter((t) => t.id !== transcriptId));
   };
 
   const value = useMemo<TranscriptsContextValue>(
@@ -76,7 +77,7 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
       transcripts,
       addTranscript,
       deleteTranscriptsForAppointment,
-      deleteTranscript, // 👈 include here
+      deleteTranscript,
     }),
     [transcripts],
   );

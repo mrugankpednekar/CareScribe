@@ -12,7 +12,7 @@ import { useAppointments } from "@/context/AppointmentsContext";
 interface DocumentsContextValue {
   documents: DocumentMeta[];
   addDocument: (doc: Omit<DocumentMeta, "id" | "uploadedAt">) => DocumentMeta;
-  updateDocument: (id: string, updates: Partial<DocumentMeta>) => DocumentMeta | undefined; // NEW
+  updateDocument: (id: string, updates: Partial<DocumentMeta>) => DocumentMeta | undefined;
   attachDocumentToAppointment: (docId: string, appointmentId?: string) => void;
   detachDocumentsFromAppointment: (appointmentId: string) => void;
   deleteDocument: (docId: string) => void;
@@ -88,6 +88,17 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     }
   }, [documents]);
 
+  // Sync: Remove documents if their appointment is deleted
+  useEffect(() => {
+    setDocuments(prev => prev.filter(doc => {
+      // If doc is not attached to any appointment, keep it
+      if (!doc.appointmentId) return true;
+      // If doc is attached, check if appointment still exists
+      if (appointments.length === 0) return true; // Safety check
+      return appointments.some(a => a.id === doc.appointmentId);
+    }));
+  }, [appointments]);
+
   const addDocument = (
     doc: Omit<DocumentMeta, "id" | "uploadedAt">,
   ): DocumentMeta => {
@@ -111,7 +122,6 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     return normalized;
   };
 
-  // NEW: Update document function
   const updateDocument = (id: string, updates: Partial<DocumentMeta>): DocumentMeta | undefined => {
     let updatedDoc: DocumentMeta | undefined;
 
@@ -126,11 +136,6 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     return updatedDoc;
   };
 
-  /**
-   * Attach a document to an appointment, or detach if appointmentId is undefined.
-   * - When attaching, ensures only the target appointment has this docId in its documentIds.
-   * - When detaching, removes this docId from all appointments' documentIds.
-   */
   const attachDocumentToAppointment = (
     docId: string,
     appointmentId?: string,
@@ -201,7 +206,7 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     () => ({
       documents,
       addDocument,
-      updateDocument, // Include in context value
+      updateDocument,
       attachDocumentToAppointment,
       detachDocumentsFromAppointment,
       deleteDocument,

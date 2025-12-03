@@ -59,6 +59,9 @@ export function MedicationsProvider({ children }: { children: ReactNode }) {
       prescribedDate: medication.prescribedDate || new Date().toISOString(),
       appointmentId: medication.appointmentId,
       reason: medication.reason,
+      frequencyType: medication.frequencyType,
+      selectedDays: medication.selectedDays,
+      skippedDates: medication.skippedDates,
     };
 
     setMedications((prev) => [...prev, newMedication]);

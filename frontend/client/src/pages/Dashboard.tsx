@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
 import { Layout } from "@/components/layout/Layout";
 import { AppointmentCard } from "@/components/dashboard/AppointmentCard";
 import { Mic, Plus, ChevronRight, Calendar as CalendarIcon, FlaskConical, Activity, Pill, Bell, X } from "lucide-react";
@@ -30,6 +31,7 @@ export default function Dashboard() {
     addEvent,
     updateEvent,
     deleteEvent,
+    toggleTaskCompletion,
     notifications,
     removeNotification
   } = useCalendar();
@@ -38,6 +40,7 @@ export default function Dashboard() {
   // because calendarTasks are simplified objects.
   const { appointments } = useAppointments();
   const { medications } = useMedications();
+  const providers = Array.from(new Set(appointments.map(a => a.doctor).filter(Boolean)));
 
   // Greeting
   const { profile } = useUserProfile();
@@ -56,6 +59,7 @@ export default function Dashboard() {
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [selectedInstanceDate, setSelectedInstanceDate] = useState<string | null>(null);
 
   // Appointment / lab form state (mirrors History.tsx)
   const [provider, setProvider] = useState("");
@@ -85,7 +89,7 @@ export default function Dashboard() {
     dosage: "",
     frequency: "Once daily",
     times: [] as string[],
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: format(new Date(), "yyyy-MM-dd"),
     endDate: "",
     prescribedBy: "",
     reason: "",
@@ -127,9 +131,10 @@ export default function Dashboard() {
     resetEventForm();
     setEventType(task.type);
     setIsEditing(true);
+    setSelectedInstanceDate(task.date.toISOString().split("T")[0]);
 
     if (task.type === "appointment" || task.type === "lab") {
-      const id = task.id.replace(/^(apt-|lab-)/, "");
+      const id = task.originalId || task.id.replace(/^(apt-|lab-)/, "");
       const apt = appointments.find(a => a.id === id);
       if (apt) {
         setEditingEventId(apt.id); // Use the REAL appointment ID
@@ -147,8 +152,20 @@ export default function Dashboard() {
         }
       }
     } else if (task.type === "medication") {
-      // ID format: med-{id}-{date}-{time}
-      const med = medications.find(m => task.id.startsWith(`med-${m.id}`));
+      // Use originalId if available, otherwise fallback to parsing
+      let medId = task.originalId;
+      if (!medId) {
+        const parts = task.id.split("-");
+        // ID format: med-{id}-{date}-{time} OR med-{id}-{date}
+        // If ID has hyphens (UUID), this split is tricky.
+        // But now we have originalId, so we should rely on that.
+        // Fallback: assume parts[1] is ID if simple numeric, otherwise try to reconstruct?
+        // Actually, if originalId is missing, we might be in trouble for UUIDs.
+        // But CalendarContext now provides it.
+        medId = parts[1];
+      }
+
+      const med = medications.find(m => m.id === medId);
       if (med) {
         setMedForm({
           name: med.name,
@@ -166,7 +183,7 @@ export default function Dashboard() {
       }
     } else if (task.type === "activity") {
       // custom-ce-123
-      const id = task.id.replace(/^custom-/, "");
+      const id = task.originalId || task.id.replace(/^custom-/, "");
       const evt = customEvents.find(e => e.id === id);
       if (evt) {
         setEventTitle(evt.title);
@@ -306,44 +323,60 @@ export default function Dashboard() {
     setShowAddEventModal(false);
   };
 
+  // Deletion Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteModalType, setDeleteModalType] = useState<"single" | "recurring">("single");
+
   const handleDeleteEvent = () => {
     if (!editingEventId) return;
 
-    if (confirm("Are you sure you want to delete this event? For recurring events, this will delete the entire series.")) {
-      deleteEvent(editingEventId, eventType);
-      resetEventForm();
-      setShowAddEventModal(false);
+    // Check if recurring
+    let isRecurring = false;
+    if (eventType === "medication") {
+      isRecurring = medForm.frequencyType !== "once";
+    } else if (eventType === "activity") {
+      isRecurring = frequencyType !== "once";
     }
+
+    setDeleteModalType(isRecurring ? "recurring" : "single");
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = (deleteSeries: boolean) => {
+    if (!editingEventId) return;
+
+    if (deleteModalType === "recurring") {
+      deleteEvent(editingEventId, eventType, deleteSeries, !deleteSeries ? selectedInstanceDate || undefined : undefined);
+    } else {
+      deleteEvent(editingEventId, eventType);
+    }
+
+    setShowDeleteModal(false);
+    resetEventForm();
+    setShowAddEventModal(false);
   };
 
   const resetEventForm = () => {
     setEventType("appointment");
+    setIsEditing(false);
+    setEditingEventId(null);
+    setSelectedInstanceDate(null);
+    setFormError(null);
+    // ... reset other fields
     setProvider("");
-    setDateTime("");
     setCategory("");
     setReason("");
     setNotes("");
+    setDateTime("");
     setLabType("");
     setAttachedProviderId("");
-    setFormError(null);
-    setIsEditing(false);
-    setEditingEventId(null);
-
-    setEventTitle("");
-    setEventDescription("");
-    setEventDate("");
-    setEventTime("");
-    setIsAllDay(false);
-    setFrequencyType("once");
-    setSelectedDays([]);
-    setRecurrenceEndDate("");
 
     setMedForm({
       name: "",
       dosage: "",
       frequency: "Once daily",
       times: [],
-      startDate: new Date().toISOString().split("T")[0],
+      startDate: "",
       endDate: "",
       prescribedBy: "",
       reason: "",
@@ -477,7 +510,13 @@ export default function Dashboard() {
                 <div className="space-y-3">
                   {(showAllTasks ? todayTasks : todayTasks.slice(0, 4)).map(
                     (task) => (
-                      <TaskCard key={task.id} task={task} />
+                      <div
+                        key={task.id}
+                        onClick={() => toggleTaskCompletion(task.id, task.type, !task.completed)}
+                        className="cursor-pointer"
+                      >
+                        <TaskCard task={task} />
+                      </div>
                     ),
                   )}
                 </div>
@@ -797,8 +836,8 @@ export default function Dashboard() {
                     <div className="space-y-1.5">
                       <label className="text-sm font-medium">Date *</label>
                       <DatePicker
-                        date={eventDate ? new Date(eventDate) : undefined}
-                        setDate={(date) => setEventDate(date ? date.toISOString().split("T")[0] : "")}
+                        date={eventDate ? new Date(eventDate + "T00:00:00") : undefined}
+                        setDate={(date) => setEventDate(date ? format(date, "yyyy-MM-dd") : "")}
                       />
                     </div>
 
@@ -841,8 +880,8 @@ export default function Dashboard() {
                         <div className="space-y-1.5">
                           <label className="text-sm font-medium">End Date (Optional)</label>
                           <DatePicker
-                            date={recurrenceEndDate ? new Date(recurrenceEndDate) : undefined}
-                            setDate={(date) => setRecurrenceEndDate(date ? date.toISOString().split("T")[0] : "")}
+                            date={recurrenceEndDate ? new Date(recurrenceEndDate + "T00:00:00") : undefined}
+                            setDate={(date) => setRecurrenceEndDate(date ? format(date, "yyyy-MM-dd") : "")}
                           />
                         </div>
                       )}
@@ -853,6 +892,44 @@ export default function Dashboard() {
                 {/* Medication form (aligned with Profile) */}
                 {eventType === "medication" && (
                   <>
+                    <div className="space-y-1.5 mb-4">
+                      <label className="text-sm font-medium">Select Existing (Optional)</label>
+                      <select
+                        className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
+                        onChange={(e) => {
+                          const medId = e.target.value;
+                          if (!medId) {
+                            resetEventForm();
+                            setEventType("medication");
+                            return;
+                          }
+                          const med = medications.find(m => m.id === medId);
+                          if (med) {
+                            setMedForm({
+                              name: med.name,
+                              dosage: med.dosage,
+                              frequency: med.frequency,
+                              times: med.times || [],
+                              startDate: med.startDate || "",
+                              endDate: med.endDate || "",
+                              prescribedBy: med.prescribedBy || "",
+                              reason: med.reason || "",
+                              frequencyType: med.frequencyType || "once",
+                              selectedDays: med.selectedDays || [],
+                            });
+                            setEditingEventId(med.id);
+                            setIsEditing(true);
+                          }
+                        }}
+                        value={isEditing && editingEventId ? editingEventId : ""}
+                      >
+                        <option value="">-- Create New --</option>
+                        {medications.map(m => (
+                          <option key={m.id} value={m.id}>{m.name} - {m.dosage}</option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium">
@@ -893,7 +970,12 @@ export default function Dashboard() {
                             {(["once", "daily", "weekly"] as const).map(type => (
                               <button
                                 key={type}
-                                onClick={() => setMedForm(prev => ({ ...prev, frequencyType: type }))}
+                                onClick={() => setMedForm(prev => ({
+                                  ...prev,
+                                  frequencyType: type,
+                                  // Update string for consistency, though logic uses frequencyType
+                                  frequency: type === "daily" ? "Daily" : type === "weekly" ? "Weekly" : "Once"
+                                }))}
                                 className={`px-3 py-1.5 rounded-md text-xs border ${medForm.frequencyType === type ? "bg-primary text-white border-primary" : "bg-background"}`}
                               >
                                 {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -926,27 +1008,50 @@ export default function Dashboard() {
                         <label className="text-sm font-medium">
                           Prescribed By
                         </label>
-                        <Input
-                          value={medForm.prescribedBy}
-                          onChange={(e) =>
-                            setMedForm((prev) => ({
-                              ...prev,
-                              prescribedBy: e.target.value,
-                            }))
-                          }
-                          placeholder="e.g. Dr. Sarah Chen"
-                        />
+                        <div className="space-y-2">
+                          <select
+                            value={providers.includes(medForm.prescribedBy) ? medForm.prescribedBy : (medForm.prescribedBy ? "other" : "")}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "other") {
+                                setMedForm(prev => ({ ...prev, prescribedBy: "" }));
+                              } else {
+                                setMedForm(prev => ({ ...prev, prescribedBy: val }));
+                              }
+                            }}
+                            className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
+                          >
+                            <option value="">Select Provider</option>
+                            {providers.map(p => (
+                              <option key={p} value={p}>{p}</option>
+                            ))}
+                            <option value="other">Other</option>
+                          </select>
+                          {(!providers.includes(medForm.prescribedBy) && (medForm.prescribedBy || !providers.length)) && (
+                            <Input
+                              value={medForm.prescribedBy}
+                              onChange={(e) =>
+                                setMedForm((prev) => ({
+                                  ...prev,
+                                  prescribedBy: e.target.value,
+                                }))
+                              }
+                              placeholder="Doctor Name"
+                            />
+                          )}
+                        </div>
                       </div>
+
                       <div className="space-y-1.5">
                         <label className="text-sm font-medium">
                           Start Date
                         </label>
                         <DatePicker
-                          date={medForm.startDate ? new Date(medForm.startDate) : undefined}
+                          date={medForm.startDate ? new Date(medForm.startDate + "T00:00:00") : undefined}
                           setDate={(date) =>
                             setMedForm((prev) => ({
                               ...prev,
-                              startDate: date ? date.toISOString().split("T")[0] : "",
+                              startDate: date ? format(date, "yyyy-MM-dd") : "",
                             }))
                           }
                         />
@@ -956,11 +1061,11 @@ export default function Dashboard() {
                           End Date (optional)
                         </label>
                         <DatePicker
-                          date={medForm.endDate ? new Date(medForm.endDate) : undefined}
+                          date={medForm.endDate ? new Date(medForm.endDate + "T00:00:00") : undefined}
                           setDate={(date) =>
                             setMedForm((prev) => ({
                               ...prev,
-                              endDate: date ? date.toISOString().split("T")[0] : "",
+                              endDate: date ? format(date, "yyyy-MM-dd") : "",
                             }))
                           }
                         />
@@ -981,43 +1086,28 @@ export default function Dashboard() {
                       />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5 md:col-span-2">
                       <label className="text-sm font-medium">
-                        Times (HH:MM)
+                        Times
                       </label>
+                      <div className="flex gap-2 mb-2 flex-wrap">
+                        {medForm.times.map(t => (
+                          <div key={t} className="bg-muted px-2 py-1 rounded-md text-sm flex items-center gap-1">
+                            {t}
+                            <button onClick={() => handleRemoveMedTime(t)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                          </div>
+                        ))}
+                      </div>
                       <div className="flex gap-2">
                         <Input
                           type="time"
                           value={newMedTime}
                           onChange={(e) => setNewMedTime(e.target.value)}
+                          onBlur={handleAddMedTime}
+                          className="w-32"
                         />
-                        <button
-                          type="button"
-                          onClick={handleAddMedTime}
-                          className="px-3 py-2 rounded-md border text-xs"
-                        >
-                          Add time
-                        </button>
+                        <button onClick={handleAddMedTime} className="text-sm text-primary font-medium">Add Time</button>
                       </div>
-                      {medForm.times.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {medForm.times.map((time) => (
-                            <span
-                              key={time}
-                              className="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs"
-                            >
-                              {time}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveMedTime(time)}
-                                className="text-[10px]"
-                              >
-                                ✕
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   </>
                 )}
@@ -1058,7 +1148,61 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {/* Deletion Confirmation Modal */}
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-card p-6 rounded-xl w-full max-w-md shadow-xl animate-in fade-in zoom-in duration-200">
+              <h3 className="text-lg font-bold mb-2">Delete Event</h3>
+              <p className="text-muted-foreground mb-6">
+                {deleteModalType === "recurring"
+                  ? "This is a recurring event. Do you want to delete just this instance or the entire series?"
+                  : "Are you sure you want to delete this event? This action cannot be undone."}
+              </p>
+
+              <div className="flex flex-col gap-3">
+                {deleteModalType === "recurring" ? (
+                  <>
+                    <button
+                      onClick={() => confirmDelete(false)}
+                      className="w-full py-2.5 bg-secondary text-secondary-foreground hover:bg-green-900 rounded-lg font-medium"
+                    >
+                      Delete Just This Instance
+                    </button>
+                    <button
+                      onClick={() => confirmDelete(true)}
+                      className="w-full py-2.5 bg-red-500 text-secondary-foreground hover:bg-red-900 rounded-lg font-medium"
+                    >
+                      Delete Entire Series
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteModal(false)}
+                      className="w-full py-2.5 text-muted-foreground hover:bg-muted rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowDeleteModal(false)}
+                      className="px-4 py-2 text-muted-foreground hover:bg-muted rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => confirmDelete(true)}
+                      className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg font-medium"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </Layout>
+    </Layout >
   );
 }

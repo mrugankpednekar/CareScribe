@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { format } from "date-fns";
 import { Layout } from "@/components/layout/Layout";
 import { useUserProfile } from "@/context/UserProfileContext";
 import { useMedications } from "@/context/MedicationsContext";
+import { useAppointments } from "@/context/AppointmentsContext";
 import { ArrowLeft, Pill, Calendar, User, Plus, Search, Edit2, X, Save } from "lucide-react";
 import { Link } from "wouter";
 import { cn } from "@/lib/utils";
@@ -12,6 +14,9 @@ import { TimePicker } from "@/components/ui/time-picker";
 export default function Profile() {
   const { profile, updateProfile } = useUserProfile();
   const { medications, addMedication, updateMedication, deleteMedication, toggleMedicationActive } = useMedications();
+  const { appointments } = useAppointments();
+
+  const providers = Array.from(new Set(appointments.map(a => a.doctor).filter(Boolean)));
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState(profile);
@@ -24,13 +29,15 @@ export default function Profile() {
     dosage: "",
     frequency: "Once daily",
     times: [] as string[],
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: format(new Date(), "yyyy-MM-dd"),
     endDate: "",
     prescribedBy: "",
     reason: "",
     frequencyType: "once" as "daily" | "weekly" | "once",
     selectedDays: [] as number[],
   });
+
+
   const [newTime, setNewTime] = useState("");
 
   const activeMeds = medications.filter((m) => m.active);
@@ -421,26 +428,48 @@ export default function Profile() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Prescribed By</label>
-                  <input
-                    type="text"
-                    value={medForm.prescribedBy}
-                    onChange={(e) => setMedForm((prev) => ({ ...prev, prescribedBy: e.target.value }))}
-                    className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
-                    placeholder="e.g. Dr. Sarah Chen"
-                  />
+                  <div className="space-y-2">
+                    <select
+                      value={providers.includes(medForm.prescribedBy) ? medForm.prescribedBy : (medForm.prescribedBy ? "other" : "")}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "other") {
+                          setMedForm(prev => ({ ...prev, prescribedBy: "" }));
+                        } else {
+                          setMedForm(prev => ({ ...prev, prescribedBy: val }));
+                        }
+                      }}
+                      className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
+                    >
+                      <option value="">Select Provider</option>
+                      {providers.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                      <option value="other">Other</option>
+                    </select>
+                    {(!providers.includes(medForm.prescribedBy) && (medForm.prescribedBy || !providers.length)) && (
+                      <input
+                        type="text"
+                        value={medForm.prescribedBy}
+                        onChange={(e) => setMedForm((prev) => ({ ...prev, prescribedBy: e.target.value }))}
+                        className="w-full p-2 border border-border rounded-lg bg-background text-foreground"
+                        placeholder="Enter provider name"
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">Start Date</label>
                   <DatePicker
-                    date={medForm.startDate ? new Date(medForm.startDate) : undefined}
-                    setDate={(date) => setMedForm((prev) => ({ ...prev, startDate: date ? date.toISOString().split("T")[0] : "" }))}
+                    date={medForm.startDate ? new Date(medForm.startDate + "T00:00:00") : undefined}
+                    setDate={(date) => setMedForm((prev) => ({ ...prev, startDate: date ? format(date, "yyyy-MM-dd") : "" }))}
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">End Date (optional)</label>
                   <DatePicker
-                    date={medForm.endDate ? new Date(medForm.endDate) : undefined}
-                    setDate={(date) => setMedForm((prev) => ({ ...prev, endDate: date ? date.toISOString().split("T")[0] : "" }))}
+                    date={medForm.endDate ? new Date(medForm.endDate + "T00:00:00") : undefined}
+                    setDate={(date) => setMedForm((prev) => ({ ...prev, endDate: date ? format(date, "yyyy-MM-dd") : "" }))}
                   />
                 </div>
                 <div className="md:col-span-2 space-y-2">

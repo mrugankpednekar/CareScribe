@@ -16,6 +16,7 @@ export type CustomEvent = {
     frequencyType?: "daily" | "weekly" | "once";
     selectedDays?: number[];
     endDate?: string;
+    skippedDates?: string[];
 };
 
 interface CalendarContextType {
@@ -24,7 +25,7 @@ interface CalendarContextType {
     customEvents: CustomEvent[];
     addEvent: (event: any) => void;
     updateEvent: (id: string, event: any) => void;
-    deleteEvent: (id: string, type: EventType) => void;
+    deleteEvent: (id: string, type: EventType, deleteSeries?: boolean, date?: string) => void;
     toggleTaskCompletion: (id: string, type: EventType, completed: boolean) => void;
     notifications: AppNotification[];
     removeNotification: (id: string) => void;
@@ -98,147 +99,106 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         a.getMonth() === b.getMonth() &&
         a.getDate() === b.getDate();
 
-    // --- 1. Generate Medication Tasks (Recurring) ---
-    const generateMedicationTasks = useMemo(() => {
-        const tasks: Array<{
-            id: string;
-            date: Date;
-            title: string;
-            type: "medication";
-            time?: string;
-            originalId: string;
-        }> = [];
+    // --- Helper: Local Date String ---
+    const toLocalDateString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    };
 
+    // --- 1. Generate Medication Tasks ---
+    const generateMedicationTasks = useMemo(() => {
+        const tasks: { id: string; date: Date; title: string; time?: string; originalId: string }[] = [];
         const now = new Date();
-        const daysToGenerate = 60;
+        const daysToGenerate = 60; // Generate for next 60 days
 
         medications.forEach((med) => {
             if (!med.active) return;
 
-            // Parse dates safely
-            // We assume stored dates are YYYY-MM-DD or ISO. 
-            // To prevent timezone shifts, we should treat YYYY-MM-DD as local date.
-            // But new Date("YYYY-MM-DD") is UTC. new Date("YYYY-MM-DDT00:00") is local.
-            // Let's ensure we work with local time for dates.
+            const startDate = new Date(med.startDate || now);
+            const endDate = med.endDate ? new Date(med.endDate) : null;
 
-            const parseLocal = (dateStr: string) => {
-                if (!dateStr) return new Date();
-                // If it's just YYYY-MM-DD, append T00:00 to force local
-                if (dateStr.length === 10) return new Date(dateStr + "T00:00:00");
-                return new Date(dateStr);
-            };
-
-            const startDate = parseLocal(med.startDate || "");
-            const endDate = med.endDate ? parseLocal(med.endDate) : null;
-
-            const freq = med.frequency || "";
-            const isDaily = med.frequencyType === "daily" || (!med.frequencyType && freq.toLowerCase().includes("daily"));
-            const isWeekly = med.frequencyType === "weekly";
-            const isOnce = med.frequencyType === "once";
-
-            if (isOnce) {
-                // Single occurrence
-                if (med.times && med.times.length > 0) {
-                    med.times.forEach(time => {
-                        tasks.push({
-                            id: `med-${med.id}-${startDate.toISOString().split("T")[0]}-${time}`,
-                            date: startDate,
-                            title: `${med.name} (${med.dosage})`,
-                            type: "medication",
-                            time,
-                            originalId: med.id
-                        });
-                    });
-                } else {
-                    tasks.push({
-                        id: `med-${med.id}-${startDate.toISOString().split("T")[0]}`,
-                        date: startDate,
-                        title: `${med.name} (${med.dosage})`,
-                        type: "medication",
-                        time: undefined,
-                        originalId: med.id
-                    });
-                }
-                return;
-            }
-
-            // Recurring
             for (let offset = 0; offset < daysToGenerate; offset++) {
                 const taskDate = new Date();
-                taskDate.setDate(now.getDate() - 5 + offset);
+                taskDate.setDate(now.getDate() - 5 + offset); // Start from 5 days ago
 
-                const taskDateStr = taskDate.toISOString().split("T")[0];
-                const startDateStr = startDate.toISOString().split("T")[0];
+                const taskDateStr = toLocalDateString(taskDate);
+                const startDateStr = toLocalDateString(startDate);
 
                 if (taskDateStr < startDateStr) continue;
                 if (endDate) {
-                    const endDateStr = endDate.toISOString().split("T")[0];
+                    const endDateStr = toLocalDateString(endDate);
                     if (taskDateStr > endDateStr) continue;
                 }
 
+                // Check skipped dates
+                if (med.skippedDates && med.skippedDates.includes(taskDateStr)) continue;
+
                 let shouldInclude = false;
-                if (isDaily) shouldInclude = true;
-                else if (isWeekly) {
+                if (med.frequencyType === "daily") shouldInclude = true;
+                else if (med.frequencyType === "weekly") {
                     if (med.selectedDays && med.selectedDays.length > 0) {
                         shouldInclude = med.selectedDays.includes(taskDate.getDay());
                     } else {
+                        // Fallback if no days selected but weekly
                         shouldInclude = taskDate.getDay() === startDate.getDay();
                     }
+                } else if (med.frequencyType === "once") {
+                    shouldInclude = taskDateStr === startDateStr;
                 } else {
-                    shouldInclude = true; // Default
+                    // Default to daily if not specified
+                    shouldInclude = true;
                 }
 
                 if (shouldInclude) {
                     if (med.times && med.times.length > 0) {
-                        med.times.forEach((time) => {
+                        med.times.forEach((t) => {
                             tasks.push({
-                                id: `med-${med.id}-${taskDateStr}-${time}`,
+                                id: `med-${med.id}-${taskDate.getTime()}-${t}`,
                                 date: new Date(taskDate),
-                                title: `${med.name} (${med.dosage})`,
-                                type: "medication",
-                                time,
+                                title: `${med.name} ${med.dosage}`,
+                                time: t,
                                 originalId: med.id
                             });
                         });
                     } else {
                         tasks.push({
-                            id: `med-${med.id}-${taskDateStr}`,
+                            id: `med-${med.id}-${taskDate.getTime()}`,
                             date: new Date(taskDate),
-                            title: `${med.name} (${med.dosage})`,
-                            type: "medication",
-                            time: undefined,
+                            title: `${med.name} ${med.dosage}`,
                             originalId: med.id
                         });
                     }
                 }
             }
         });
-
         return tasks;
     }, [medications]);
 
-    // --- 2. Generate Activity Tasks (Recurring) ---
+    // --- 2. Generate Custom Activity Tasks ---
     const activityTasks = useMemo(() => {
-        return customEvents.flatMap((ev) => {
-            const events: CalendarTask[] = [];
+        const events: CalendarTask[] = [];
 
-            const parseLocal = (dateStr: string) => {
-                if (!dateStr) return new Date();
-                if (dateStr.length === 10) return new Date(dateStr + "T00:00:00");
-                return new Date(dateStr);
+        customEvents.forEach((ev) => {
+            const startDate = new Date(ev.date);
+            const parseLocal = (s: string) => {
+                const [y, m, d] = s.split("-").map(Number);
+                return new Date(y, m - 1, d);
             };
-
-            const startDate = parseLocal(ev.date);
+            // const startDate = parseLocal(ev.date);
             const endDate = ev.endDate ? parseLocal(ev.endDate) : null;
 
             if (!ev.frequencyType || ev.frequencyType === "once") {
-                return [{
+                events.push({
                     id: `custom-${ev.id}`,
                     date: startDate,
                     title: ev.title,
                     type: ev.type as EventType,
                     time: ev.allDay ? undefined : ev.time,
-                }];
+                    originalId: ev.id
+                });
+                return;
             }
 
             const daysToGenerate = 60;
@@ -248,14 +208,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 const taskDate = new Date();
                 taskDate.setDate(now.getDate() - 5 + offset);
 
-                const taskDateStr = taskDate.toISOString().split("T")[0];
-                const startDateStr = startDate.toISOString().split("T")[0];
+                const taskDateStr = toLocalDateString(taskDate);
+                const startDateStr = toLocalDateString(startDate);
 
                 if (taskDateStr < startDateStr) continue;
                 if (endDate) {
-                    const endDateStr = endDate.toISOString().split("T")[0];
+                    const endDateStr = toLocalDateString(endDate);
                     if (taskDateStr > endDateStr) continue;
                 }
+
+                // Check skipped dates
+                if (ev.skippedDates && ev.skippedDates.includes(taskDateStr)) continue;
 
                 let shouldInclude = false;
                 if (ev.frequencyType === "daily") shouldInclude = true;
@@ -274,11 +237,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                         title: ev.title,
                         type: ev.type as EventType,
                         time: ev.allDay ? undefined : ev.time,
+                        originalId: ev.id
                     });
                 }
             }
-            return events;
         });
+        return events;
     }, [customEvents]);
 
     // --- 3. Combine All Tasks for Calendar ---
@@ -298,17 +262,27 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                         hour: "numeric",
                         minute: "2-digit",
                     }),
+                    originalId: apt.id
                 };
             })
             .filter(Boolean) as CalendarTask[];
 
-        const medTasks = generateMedicationTasks.map((t) => ({
-            id: t.id,
-            date: t.date,
-            title: t.title,
-            type: "medication" as EventType,
-            time: t.time,
-        }));
+        const seenMedDays = new Set<string>();
+        const medTasks = generateMedicationTasks
+            .filter(t => {
+                const key = `${t.originalId}-${t.date.toISOString().split("T")[0]}`;
+                if (seenMedDays.has(key)) return false;
+                seenMedDays.add(key);
+                return true;
+            })
+            .map((t) => ({
+                id: t.id,
+                date: t.date,
+                title: t.title,
+                type: "medication" as EventType,
+                time: t.time,
+                originalId: t.originalId
+            }));
 
         return [...aptTasks, ...medTasks, ...activityTasks];
     }, [appointments, generateMedicationTasks, activityTasks]);
@@ -333,6 +307,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                     }),
                     type: (isLab ? "lab" : "appointment") as EventType,
                     completed: apt.status === "completed",
+                    originalId: apt.id
                 };
             });
 
@@ -345,6 +320,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 due: task.time || "Any time",
                 type: "medication" as EventType,
                 completed: completedTaskIds.includes(task.id),
+                originalId: task.originalId
             }));
 
         const todaysActs = activityTasks
@@ -356,7 +332,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                     subtitle: "Activity",
                     due: t.time || "All day",
                     type: "activity" as EventType,
-                    completed: completedTaskIds.includes(t.id)
+                    completed: completedTaskIds.includes(t.id),
+                    originalId: t.originalId
                 };
             });
 
@@ -398,26 +375,22 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         const checkNotifications = () => {
             const now = new Date();
             const nowTime = now.getTime();
+            const key = `notified-${nowTime}`;
+
+            if (sessionStorage.getItem(key)) return;
 
             const notify = (title: string, body: string, id: string) => {
-                const key = `notified-${id}-${now.toDateString()}-${now.getHours()}-${now.getMinutes()}`;
-                if (sessionStorage.getItem(key)) return;
+                if (notifications.some(n => n.id === id)) return;
 
                 // Play sound
                 try {
                     const audio = new Audio("/sounds/notification.mp3");
-                    audio.play().catch((e) => console.error("Audio play failed", e));
-                } catch (e) {
-                    console.error("Audio creation failed", e);
-                }
+                    audio.play().catch(() => { });
+                } catch { }
 
-                // Browser notification
-                new Notification(title, { body, icon: "/favicon.ico" });
-
-                // Add to in-app notifications
                 setNotifications(prev => [
                     {
-                        id: `notif-${Date.now()}-${Math.random()}`,
+                        id,
                         title,
                         message: body,
                         timestamp: new Date().toISOString(),
@@ -431,8 +404,6 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
             // Meds: At time
             generateMedicationTasks.forEach(task => {
-                // Only check today's meds to save perf? No, need to check all generated.
-                // generateMedicationTasks is already limited to +/- 60 days.
                 if (!task.time) return;
 
                 // Parse task time on task date
@@ -440,14 +411,17 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 const taskTime = new Date(task.date);
                 taskTime.setHours(h, m, 0, 0);
 
-                if (Math.abs(nowTime - taskTime.getTime()) < 60000) {
+                // Check if we are within the minute of the task time
+                // Since we align to :00 seconds, we can just check if minutes match and seconds are low
+                const diff = Math.abs(nowTime - taskTime.getTime());
+                if (diff < 1000) { // Within 1 second tolerance
                     notify("Medication Reminder", `Time to take: ${task.title}`, task.id);
                 }
             });
 
             // Activities: 30m before, At time
             activityTasks.forEach(task => {
-                if (!task.time) return; // All day events? Maybe notify at 9am? Skipping for now.
+                if (!task.time) return;
 
                 const [h, m] = task.time.split(":").map(Number);
                 const taskTime = new Date(task.date);
@@ -455,12 +429,13 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
                 const diff = taskTime.getTime() - nowTime;
 
-                // 30 mins before (29-31 mins)
-                if (diff > 29 * 60000 && diff < 31 * 60000) {
+                // 30 mins before (exact minute match)
+                // 30 * 60 * 1000 = 1800000
+                if (Math.abs(diff - 1800000) < 1000) {
                     notify("Upcoming Activity", `${task.title} in 30 minutes`, `${task.id}-30m`);
                 }
                 // At time
-                if (Math.abs(diff) < 60000) {
+                if (Math.abs(diff) < 1000) {
                     notify("Activity Reminder", `Starting now: ${task.title}`, `${task.id}-now`);
                 }
             });
@@ -472,22 +447,34 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 const diff = aptTime - nowTime;
 
                 // 24h before
-                if (diff > 23.9 * 3600000 && diff < 24.1 * 3600000) {
+                if (Math.abs(diff - 86400000) < 1000) {
                     notify("Upcoming Appointment", `${apt.doctor || "Appointment"} tomorrow`, `${apt.id}-24h`);
                 }
                 // 1h before
-                if (diff > 59 * 60000 && diff < 61 * 60000) {
+                if (Math.abs(diff - 3600000) < 1000) {
                     notify("Upcoming Appointment", `${apt.doctor || "Appointment"} in 1 hour`, `${apt.id}-1h`);
                 }
                 // At time
-                if (Math.abs(diff) < 60000) {
+                if (Math.abs(diff) < 1000) {
                     notify("Appointment Reminder", `${apt.doctor || "Appointment"} starting now`, `${apt.id}-now`);
                 }
             });
         };
 
-        const interval = setInterval(checkNotifications, 60000);
-        return () => clearInterval(interval);
+        // Align to next minute start
+        const now = new Date();
+        const msToNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+
+        let interval: NodeJS.Timeout;
+        const timeout = setTimeout(() => {
+            checkNotifications(); // Run immediately at start of minute
+            interval = setInterval(checkNotifications, 60000); // Then every 60s
+        }, msToNextMinute);
+
+        return () => {
+            clearTimeout(timeout);
+            clearInterval(interval);
+        };
     }, [generateMedicationTasks, activityTasks, appointments]);
 
 
@@ -512,8 +499,6 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         }
     };
 
-
-
     const toggleTaskCompletion = (id: string, type: EventType, completed: boolean) => {
         if (type === "appointment" || type === "lab") {
             const aptId = id.replace(/^(apt-|lab-)/, "");
@@ -524,28 +509,38 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 if (completed) return [...prev, id];
                 return prev.filter(tid => tid !== id);
             });
-
-            // Also update the original custom event if it's an activity, for persistence across reloads if needed?
-            // Actually, for recurring activities, we might want to track instance completion.
-            // Using completedTaskIds (which includes date in ID) is better for recurring instances.
         }
     };
 
-    const deleteEvent = (id: string, type: EventType) => {
+    const deleteEvent = (id: string, type: EventType, deleteSeries: boolean = true, date?: string) => {
         if (type === "appointment" || type === "lab") {
             deleteAppointment(id);
         } else if (type === "medication") {
-            // For meds, we usually delete the whole prescription. 
-            // User asked to "only delete all future events... dont delete past".
-            // We can achieve this by setting endDate to yesterday.
             const med = medications.find(m => m.id === id);
             if (med) {
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                updateMedication(id, { endDate: yesterday.toISOString().split("T")[0] });
+                if (deleteSeries) {
+                    // Stop future occurrences by setting endDate to yesterday
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    updateMedication(id, { endDate: yesterday.toISOString().split("T")[0] });
+                } else if (date) {
+                    // Just this instance
+                    const skipped = med.skippedDates || [];
+                    updateMedication(id, { skippedDates: [...skipped, date] });
+                }
             }
         } else if (type === "activity") {
-            setCustomEvents(prev => prev.filter(e => e.id !== id));
+            if (deleteSeries) {
+                setCustomEvents(prev => prev.filter(e => e.id !== id));
+            } else if (date) {
+                setCustomEvents(prev => prev.map(e => {
+                    if (e.id === id) {
+                        const skipped = e.skippedDates || [];
+                        return { ...e, skippedDates: [...skipped, date] };
+                    }
+                    return e;
+                }));
+            }
         }
     };
 

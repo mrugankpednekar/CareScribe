@@ -17,10 +17,11 @@ export interface Medication {
   prescribedDate?: string; // ISO date string
   appointmentId?: string; // Link to appointment if prescribed during visit
   reason?: string; // Why this medication was prescribed
-  
+
   // Recurrence fields
   frequencyType?: "daily" | "weekly" | "once";
   selectedDays?: number[]; // 0-6 (Sun-Sat)
+  skippedDates?: string[]; // ISO date strings to skip
 }
 
 export type AppointmentType = "appointment" | "lab";
@@ -47,14 +48,7 @@ export interface Appointment {
   documentIds?: string[];    // IDs of docs stored in backend
 }
 
-// Transcript metadata (actual content will come from backend)
-export interface Transcript {
-  id: string;
-  appointmentId: string;
-  createdAt: string; // ISO
-  summary?: string;
-  // You might later add: url to fetch full text, or partial preview
-}
+
 
 // Document metadata (file stored in backend, only meta & link here)
 export interface DocumentMeta {
@@ -74,7 +68,7 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   age?: number;
-  bloodType?: string;  
+  bloodType?: string;
   weightKg?: number;
   heightCm?: number;
   gender?: string
@@ -96,6 +90,7 @@ export interface Transcript {
   createdAt: string; // ISO
   title: string;
   lines: string[];
+  documentId?: string; // Link to the corresponding document
 }
 // ---------------------------
 // Calendar + Checklist Types
@@ -126,4 +121,5 @@ export interface CalendarTask {
   title: string;
   type: EventType;
   time?: string;
+  originalId?: string;
 }

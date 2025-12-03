@@ -8,11 +8,13 @@ import { useAppointments } from "@/context/AppointmentsContext";
 import type { Appointment } from "@/lib/types";
 import { useTranscripts } from "@/context/TranscriptsContext";
 import { useUserProfile } from "@/context/UserProfileContext";
+import { useDocuments } from "@/context/DocumentsContext";
 import { DateTimePicker } from "@/components/ui/date-picker";
 
 export default function Record() {
   const { appointments, addAppointment, updateAppointment } = useAppointments();
   const { addTranscript } = useTranscripts();
+  const { addDocument } = useDocuments();
   const { profile } = useUserProfile();
 
   const [status, setStatus] = useState<"idle" | "recording" | "processing" | "done">("idle");
@@ -108,20 +110,35 @@ export default function Record() {
         // Attach a transcript to the selected appointment
         if (attachedAppointmentId) {
           try {
-            // Create a basic transcript for now
-            const transcript = addTranscript({
-              appointmentId: attachedAppointmentId,
-              lines: [
-                "Audio visit recorded with CareScribe.",
-                "Transcription service is not wired up yet, this is a demo transcript attached to your visit.",
-              ],
-            });
-
-            // Also update the appointment's transcriptIds list
             const apt = appointments.find((a) => a.id === attachedAppointmentId);
             if (apt) {
+              // 1. Create Document
+              const docName = `transcript-${apt.doctor.replace(/\s+/g, "_")}-${new Date().toISOString().split("T")[0]}-${new Date().toLocaleTimeString("en-US", { hour12: false }).replace(/:/g, "-")}.txt`;
+              const doc = addDocument({
+                appointmentId: attachedAppointmentId,
+                name: docName,
+                sizeBytes: 1024,
+                mimeType: "text/plain",
+              });
+
+              // 2. Create Transcript linked to Document
+              const transcript = addTranscript({
+                appointmentId: attachedAppointmentId,
+                lines: [
+                  "Audio visit recorded with CareScribe.",
+                  "Transcription service is not wired up yet, this is a demo transcript attached to your visit.",
+                ],
+                documentId: doc.id
+              });
+
+              // 3. Update Appointment
               const nextTranscriptIds = [...(apt.transcriptIds ?? []), transcript.id];
-              updateAppointment(apt.id, { transcriptIds: nextTranscriptIds });
+              const nextDocIds = [...(apt.documentIds ?? []), doc.id];
+
+              updateAppointment(apt.id, {
+                transcriptIds: nextTranscriptIds,
+                documentIds: nextDocIds
+              });
             }
           } catch (err) {
             console.error("Failed to attach transcript to appointment", err);
@@ -271,7 +288,10 @@ export default function Record() {
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-foreground",
                     )}
-                    onClick={() => setAttachMode("new")}
+                    onClick={() => {
+                      setAttachMode("new");
+                      setNewAppointment(prev => ({ ...prev, date: new Date().toISOString() }));
+                    }}
                   >
                     New
                   </button>
@@ -317,15 +337,9 @@ export default function Record() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-foreground">Date & time</label>
-                      <DateTimePicker
-                        date={newAppointment.date ? new Date(newAppointment.date) : undefined}
-                        setDate={(date) =>
-                          setNewAppointment((prev) => ({
-                            ...prev,
-                            date: date ? date.toISOString() : "",
-                          }))
-                        }
-                      />
+                      <div className="w-full p-3 border border-border rounded-lg bg-muted text-muted-foreground text-sm">
+                        {new Date().toLocaleString()}
+                      </div>
                     </div>
                   </div>
                 )}

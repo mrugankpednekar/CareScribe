@@ -30,7 +30,7 @@ export default function AppointmentDetails() {
     deleteTranscriptsForAppointment,
     deleteTranscript,
   } = useTranscripts();
-  const { documents, detachDocumentsFromAppointment } = useDocuments();
+  const { documents, detachDocumentsFromAppointment, deleteDocument } = useDocuments();
 
   const [match, params] = useRoute<{ id: string }>("/appointment/:id");
   const appointmentId = params?.id;
@@ -40,6 +40,8 @@ export default function AppointmentDetails() {
     () => appointments.find((apt) => apt.id === appointmentId),
     [appointments, appointmentId],
   );
+
+
 
   const [doctor, setDoctor] = useState("");
   const [specialty, setSpecialty] = useState("");
@@ -152,8 +154,9 @@ export default function AppointmentDetails() {
 
   const appointmentDocuments: DocumentMeta[] = documents.filter(
     (d) =>
-      d.appointmentId === appointment.id ||
-      (appointment.documentIds ?? []).includes(d.id),
+      (d.appointmentId === appointment.id ||
+        (appointment.documentIds ?? []).includes(d.id)) &&
+      !transcripts.some(t => t.documentId === d.id)
   );
 
   const attachedLabs = appointments.filter(
@@ -223,9 +226,15 @@ export default function AppointmentDetails() {
   };
 
   const handleRemoveTranscript = (transcriptId: string) => {
+    const transcript = transcripts.find(t => t.id === transcriptId);
+
     deleteTranscript(transcriptId);
 
-    if ((appointment.transcriptIds ?? []).includes(transcriptId)) {
+    if (transcript?.documentId) {
+      deleteDocument(transcript.documentId);
+    }
+
+    if (appointment && (appointment.transcriptIds ?? []).includes(transcriptId)) {
       const nextIds = (appointment.transcriptIds ?? []).filter(
         (id) => id !== transcriptId,
       );

@@ -1,4 +1,5 @@
 import { useMemo, useState, ChangeEvent } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/layout/Layout";
 import {
   FileText,
@@ -12,10 +13,12 @@ import {
 } from "lucide-react";
 import { useAppointments } from "@/context/AppointmentsContext";
 import { useDocuments } from "@/context/DocumentsContext";
+import { useTranscripts } from "@/context/TranscriptsContext";
 import { Input } from "@/components/ui/input";
 import type { DocumentMeta } from "@/lib/types";
 
 export default function Documents() {
+  const [, setLocation] = useLocation();
   const { appointments, updateAppointment } = useAppointments();
   const {
     documents,
@@ -24,6 +27,7 @@ export default function Documents() {
     updateDocument,
     detachDocumentsFromAppointment,
   } = useDocuments();
+  const { transcripts, deleteTranscript } = useTranscripts();
 
   // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -43,6 +47,11 @@ export default function Documents() {
 
   // Summary generation
   const [summaryLoadingId, setSummaryLoadingId] = useState<string | null>(null);
+
+  // Rename/Delete state
+  const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [confirmingDocId, setConfirmingDocId] = useState<string | null>(null);
 
   const sortedDocuments = useMemo(
     () =>
@@ -94,7 +103,6 @@ export default function Documents() {
         const created = addDocument(docInput);
 
         if (targetAppointmentId !== "none") {
-          // Find the appointment and add the document ID to its documentIds
           const apt = appointments.find(a => a.id === targetAppointmentId);
           if (apt) {
             const currentIds = apt.documentIds ?? [];
@@ -118,7 +126,11 @@ export default function Documents() {
   };
 
   const handleDelete = (id: string) => {
-    detachDocumentsFromAppointment(id);
+    // Check if transcript
+    const transcript = transcripts.find(t => t.documentId === id);
+    if (transcript) {
+      deleteTranscript(transcript.id);
+    }
     deleteDocument(id);
   };
 
@@ -136,7 +148,6 @@ export default function Documents() {
 
   const handleDownload = (doc: DocumentMeta) => {
     if (!doc.downloadUrl) return;
-
     try {
       const link = document.createElement("a");
       link.href = doc.downloadUrl;
@@ -145,57 +156,47 @@ export default function Documents() {
       link.click();
       document.body.removeChild(link);
     } catch {
-      // ignore download errors for now
+      // ignore
     }
   };
 
-  const resolveAppointmentLabel = (doc: DocumentMeta): string => {
-    if (!doc.appointmentId) {
-      return "Not attached to an appointment";
-    }
-    const apt = appointments.find((a) => a.id === doc.appointmentId);
-    if (!apt) {
-      return "Linked appointment not found";
-    }
-    const isLab = apt.type === "lab";
-    const dateLabel = apt.date
-      ? new Date(apt.date).toLocaleDateString()
-      : "No date";
+  const handleChangeAttachment = (docId: string, appointmentId: string) => {
+    updateDocument(docId, { appointmentId: appointmentId === "none" ? undefined : appointmentId });
 
-    if (isLab) {
-      const orderedBy =
-        apt.attachedProviderId &&
-        appointments.find((a) => a.id === apt.attachedProviderId)?.doctor;
+    if (appointmentId === "none") {
+      appointments.forEach(apt => {
+        if (apt.documentIds?.includes(docId)) {
+          const updatedIds = apt.documentIds.filter(id => id !== docId);
+          updateAppointment(apt.id, { documentIds: updatedIds });
+        }
+      });
+      return;
+    }
 
-      const base = apt.labType || "Lab work";
-      if (orderedBy) {
-        return `${base} (Lab, ordered by ${orderedBy}) • ${dateLabel}`;
+    appointments.forEach(apt => {
+      const currentIds = apt.documentIds ?? [];
+      if (apt.id === appointmentId) {
+        if (!currentIds.includes(docId)) {
+          updateAppointment(apt.id, { documentIds: [...currentIds, docId] });
+        }
+      } else if (currentIds.includes(docId)) {
+        const updatedIds = currentIds.filter(id => id !== docId);
+        updateAppointment(apt.id, { documentIds: updatedIds });
       }
-      return `${base} (Lab) • ${dateLabel}`;
-    }
-
-    const providerLabel = `${apt.doctor || "Provider"}${apt.specialty ? ` - ${apt.specialty}` : ""
-      }`;
-
-    return `${providerLabel} • ${dateLabel}`;
+    });
   };
 
-  // --- SEARCH LOGIC ---
-
-  const normalize = (value: string | undefined | null) =>
-    (value ?? "").toLowerCase().trim();
+  const normalize = (s?: string) => (s || "").toLowerCase();
 
   const matchesSearch = (doc: DocumentMeta) => {
     if (!searchQuery.trim()) return true;
     const q = normalize(searchQuery);
 
-    const apt = doc.appointmentId
-      ? appointments.find((a) => a.id === doc.appointmentId)
-      : undefined;
-
+    const apt = appointments.find((a) => a.id === doc.appointmentId);
     const doctor = normalize(apt?.doctor);
     const specialty = normalize(apt?.specialty);
     const labType = normalize(apt?.labType);
+
     const docName = normalize(doc.name);
     const mime = normalize(doc.mimeType);
 
@@ -229,60 +230,12 @@ export default function Documents() {
 
   const filteredDocuments = sortedDocuments.filter(matchesSearch);
 
-  // --- ATTACH / RE-ATTACH AFTER UPLOAD ---
-
-  const handleChangeAttachment = (docId: string, appointmentId: string) => {
-    // Update the document's own metadata
-    updateDocument(docId, { appointmentId: appointmentId === "none" ? undefined : appointmentId });
-
-    if (appointmentId === "none") {
-      // Detach from all appointments
-      appointments.forEach(apt => {
-        if (apt.documentIds?.includes(docId)) {
-          const updatedIds = apt.documentIds.filter(id => id !== docId);
-          updateAppointment(apt.id, { documentIds: updatedIds });
-        }
-      });
-      return;
-    }
-
-    // Attach to specific appointment and remove from others
-    appointments.forEach(apt => {
-      const currentIds = apt.documentIds ?? [];
-      if (apt.id === appointmentId) {
-        // Add to this appointment if not already there
-        if (!currentIds.includes(docId)) {
-          updateAppointment(apt.id, { documentIds: [...currentIds, docId] });
-        }
-      } else if (currentIds.includes(docId)) {
-        // Remove from other appointments
-        const updatedIds = currentIds.filter(id => id !== docId);
-        updateAppointment(apt.id, { documentIds: updatedIds });
-      }
-    });
-  };
-
-  // --- FULL REPORT EXPORT (PDF from backend) ---
-
   const handleGenerateFullReport = async () => {
     try {
       setIsExporting(true);
-
-      // Backend should return a PDF here
-      const res = await fetch("/api/reports/full-history");
-      if (!res.ok) {
-        throw new Error("Failed to generate report");
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "medical-history.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      // Mock delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // In real app, fetch PDF blob
     } catch (err) {
       console.error(err);
     } finally {
@@ -290,13 +243,16 @@ export default function Documents() {
     }
   };
 
+  const handleGenerateSummary = async (doc: DocumentMeta) => {
+    setSummaryLoadingId(doc.id);
+    setTimeout(() => {
+      setSummaryLoadingId(null);
+    }, 2000);
+  };
+
   const handleDeleteClick = (id: string) => {
     setConfirmingDocId(id);
   };
-
-  const [renamingDocId, setRenamingDocId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [confirmingDocId, setConfirmingDocId] = useState<string | null>(null);
 
   const startRenaming = (doc: DocumentMeta) => {
     setRenamingDocId(doc.id);
@@ -318,40 +274,10 @@ export default function Documents() {
     setConfirmingDocId(null);
   };
 
-  const handleGenerateSummary = async (doc: DocumentMeta) => {
-    try {
-      setSummaryLoadingId(doc.id);
-
-      // Call backend endpoint to generate a summary PDF
-      const res = await fetch(`/api/documents/${doc.id}/summary`, {
-        method: "POST",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to generate summary");
-      }
-
-      const blob = await res.blob(); // Expecting application/pdf
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${doc.name || "document"} - summary.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSummaryLoadingId(null);
-    }
-  };
-
   const isSummaryLoading = (docId: string) => summaryLoadingId === docId;
 
   const renderPreviewContent = (doc: DocumentMeta | null) => {
     if (!doc) return null;
-
     if (!doc.downloadUrl) {
       return (
         <p className="text-sm text-muted-foreground">
@@ -359,7 +285,6 @@ export default function Documents() {
         </p>
       );
     }
-
     if (doc.mimeType?.startsWith("image/")) {
       return (
         <div className="w-full h-[70vh] flex items-center justify-center overflow-auto">
@@ -371,7 +296,6 @@ export default function Documents() {
         </div>
       );
     }
-
     if (doc.mimeType === "application/pdf") {
       return (
         <iframe
@@ -381,12 +305,19 @@ export default function Documents() {
         />
       );
     }
-
     return (
       <p className="text-sm text-muted-foreground">
         Preview not available for this file type. Try downloading it instead.
       </p>
     );
+  };
+
+  const resolveAppointmentLabel = (doc: DocumentMeta) => {
+    if (!doc.appointmentId) return "Unattached";
+    const apt = appointments.find((a) => a.id === doc.appointmentId);
+    if (!apt) return "Unknown Appointment";
+    if (apt.type === "lab") return `${apt.labType || "Lab"} • ${new Date(apt.date || "").toLocaleDateString()}`;
+    return `${apt.doctor} • ${new Date(apt.date || "").toLocaleDateString()}`;
   };
 
   return (
@@ -448,45 +379,22 @@ export default function Documents() {
           </div>
 
           {/* Search bar */}
-          {sortedDocuments.length > 0 && (
-            <div className="mb-4">
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, doctor, or date..."
-                  className="pl-9 h-9 bg-background border-border/60 text-xs"
-                />
-              </div>
-            </div>
-          )}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search documents..."
+              className="pl-9 h-9 text-xs"
+            />
+          </div>
 
           {filteredDocuments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <FileText className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground mb-2">
-                {sortedDocuments.length === 0
-                  ? "No documents uploaded yet."
-                  : "No documents match your search."}
-              </p>
-              <p className="text-xs text-muted-foreground mb-4 max-w-sm">
-                Upload visit summaries, lab reports, referrals, or any other
-                files you want to keep with your medical history.
-              </p>
-              <button
-                type="button"
-                onClick={() => setShowUploadModal(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
-              >
-                <Upload className="w-4 h-4" />
-                Upload a document
-              </button>
+            <div className="text-center py-10">
+              <p className="text-sm text-muted-foreground">No documents found.</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3">
               {filteredDocuments.map((doc) => {
                 const isRenaming = renamingDocId === doc.id;
                 const isConfirming = confirmingDocId === doc.id;
@@ -497,7 +405,16 @@ export default function Documents() {
                 return (
                   <div
                     key={doc.id}
-                    className="relative flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 hover:bg-muted/60 transition-colors group"
+                    className={`relative flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 hover:bg-muted/60 transition-colors group ${doc.appointmentId ? "cursor-pointer" : ""}`}
+                    onClick={(e) => {
+                      // Prevent navigation if clicking on interactive elements
+                      if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('input') || (e.target as HTMLElement).closest('select')) {
+                        return;
+                      }
+                      if (doc.appointmentId) {
+                        setLocation(`/appointment/${doc.appointmentId}`);
+                      }
+                    }}
                   >
                     <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-muted-foreground" />
@@ -556,7 +473,9 @@ export default function Documents() {
                                 onChange={(e) =>
                                   handleChangeAttachment(doc.id, e.target.value)
                                 }
-                                className="text-[12px] border border-border bg-background rounded-lg px-2 py-1 h-9 max-w-[260px] font-medium"
+                                disabled={transcripts.some(t => t.documentId === doc.id)}
+                                className="text-[12px] border border-border bg-background rounded-lg px-2 py-1 h-9 max-w-[260px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={transcripts.some(t => t.documentId === doc.id) ? "Transcripts cannot be moved" : "Change attachment"}
                               >
                                 <option value="none">None</option>
                                 {appointments.map((apt) => {
@@ -585,7 +504,6 @@ export default function Documents() {
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 ml-2">
-                      {/* Preview icon */}
                       <button
                         type="button"
                         onClick={() => handleOpenPreview(doc)}
@@ -595,7 +513,6 @@ export default function Documents() {
                         <Eye className="w-5 h-5 text-muted-foreground" />
                       </button>
 
-                      {/* AI summary icon */}
                       <button
                         type="button"
                         onClick={() => handleGenerateSummary(doc)}
@@ -606,7 +523,6 @@ export default function Documents() {
                         <Sparkles className="w-5 h-5 text-foreground" />
                       </button>
 
-                      {/* Download icon */}
                       <button
                         type="button"
                         onClick={() => handleDownload(doc)}
@@ -617,7 +533,6 @@ export default function Documents() {
                         <Download className="w-5 h-5 text-foreground" />
                       </button>
 
-                      {/* Delete icon */}
                       <button
                         type="button"
                         onClick={() => handleDeleteClick(doc.id)}
@@ -629,7 +544,7 @@ export default function Documents() {
                     </div>
 
                     {isConfirming && (
-                      <div className="absolute right-3 top-3 bg-card border border-border shadow-md px-3 py-2 flex items-center gap-2 rounded-xl">
+                      <div className="absolute right-3 top-3 bg-card border border-border shadow-md px-3 py-2 flex items-center gap-2 rounded-xl z-10">
                         <span className="text-[11px] text-muted-foreground">
                           Delete this document?
                         </span>
@@ -799,8 +714,7 @@ export default function Documents() {
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
-
-              <div className="p-4 overflow-auto">
+              <div className="flex-1 overflow-auto p-4 bg-muted/20">
                 {renderPreviewContent(previewDoc)}
               </div>
             </div>
