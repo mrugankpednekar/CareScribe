@@ -130,70 +130,8 @@ export async function registerRoutes(
         status: "completed",
       });
 
-      // 3. Process with AI to extract data
-      try {
-        const processed = await processTranscript(transcriptText);
-        console.log("AI Processed Data:", processed);
-
-        if (appointmentId) {
-          // Check if appointment exists first
-          const existingApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
-
-          if (existingApt) {
-            // Update Appointment details
-            await storage.updateAppointment(appointmentId, {
-              diagnosis: processed.diagnosis ? [processed.diagnosis] : undefined,
-              notes: processed.notes || undefined,
-              instructions: processed.instructions ? [processed.instructions] : undefined,
-            });
-
-            // Create Medications
-            for (const med of processed.medications) {
-              await storage.createMedication({
-                userId,
-                name: med.name,
-                dosage: med.dosage,
-                frequency: med.frequency,
-                reason: med.reason,
-                active: true,
-                appointmentId,
-              });
-            }
-
-            // Create Tasks
-            for (const task of processed.tasks) {
-              await storage.createTask({
-                userId,
-                title: task.title,
-                type: "general",
-                due: task.due || new Date().toISOString(),
-                completed: false,
-              });
-            }
-
-            // Create Follow-up Appointment
-            if (processed.followUp && processed.followUp.date) {
-              // Find the doctor name from the current appointment to reuse
-              const currentApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
-
-              await storage.createAppointment({
-                userId,
-                doctor: currentApt?.doctor || "Dr. Smith",
-                specialty: currentApt?.specialty || "General",
-                date: processed.followUp.date,
-                reason: processed.followUp.reason || "Follow-up",
-                status: "upcoming",
-                diagnosis: null,
-                notes: null,
-                instructions: null
-              });
-            }
-          }
-        }
-      } catch (aiError) {
-        console.error("AI Processing failed:", aiError);
-        // Don't fail the request if AI processing fails, just log it
-      }
+      // AI processing is now manual-only via the "Process Transcript" button
+      // Users can process all transcripts together from the appointment details page
 
       res.json(transcription);
     } catch (error) {
@@ -225,7 +163,7 @@ export async function registerRoutes(
     res.json(transcription);
   });
 
-  // Process an existing transcript with AI
+  // Process ALL transcripts for an appointment with AI
   app.post("/api/transcriptions/:id/process", async (req, res) => {
     try {
       const userId = "user-1";
@@ -235,14 +173,29 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Transcription not found" });
       }
 
-      if (!transcription.transcript) {
-        return res.status(400).json({ message: "No transcript text available" });
+      const appointmentId = transcription.appointmentId;
+      if (!appointmentId) {
+        return res.status(400).json({ message: "Transcription not linked to appointment" });
       }
 
-      const processed = await processTranscript(transcription.transcript);
-      console.log("Manual AI Processing:", processed);
+      // Get ALL transcriptions for this appointment
+      const allTranscriptions = (await storage.getTranscriptions(userId))
+        .filter(t => t.appointmentId === appointmentId)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-      const appointmentId = transcription.appointmentId;
+      if (allTranscriptions.length === 0) {
+        return res.status(400).json({ message: "No transcripts found" });
+      }
+
+      // Combine all transcript texts
+      const combinedText = allTranscriptions
+        .map((t, i) => `[Recording ${i + 1}/${allTranscriptions.length}]\n${t.transcript || ""}`)
+        .join("\n\n");
+
+      console.log(`Processing ${allTranscriptions.length} transcript(s) for appointment ${appointmentId}`);
+
+      const processed = await processTranscript(combinedText);
+      console.log("Manual AI Processing:", JSON.stringify(processed, null, 2));
 
       if (appointmentId) {
         // Get existing appointment data to check for duplicates
@@ -260,8 +213,7 @@ export async function registerRoutes(
         // Create Medications (check for duplicates by name)
         for (const med of processed.medications) {
           const duplicate = existingMeds.find(
-            m => m.name.toLowerCase() === med.name.toLowerCase() &&
-              m.dosage === med.dosage &&
+            m => m.name.toLowerCase().trim() === med.name.toLowerCase().trim() &&
               m.appointmentId === appointmentId
           );
           if (!duplicate) {
@@ -280,14 +232,14 @@ export async function registerRoutes(
         // Create Tasks (check for duplicates by title)
         for (const task of processed.tasks) {
           const duplicate = existingTasks.find(
-            t => t.title.toLowerCase() === task.title.toLowerCase() &&
+            t => t.title.toLowerCase().trim() === task.title.toLowerCase().trim() &&
               !t.completed
           );
           if (!duplicate) {
             await storage.createTask({
               userId,
               title: task.title,
-              type: "general",
+              type: task.type || "general", // Use AI type or fallback
               due: task.due || new Date().toISOString(),
               completed: false,
             });

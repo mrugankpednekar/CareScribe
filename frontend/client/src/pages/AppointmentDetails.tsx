@@ -650,17 +650,17 @@ export default function AppointmentDetails() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-foreground mb-1">
-                  Auto-fill from transcript
+                  Process all recordings with AI
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Use AI to extract medications, tasks, and follow-ups from your recording.
+                  Analyze all {appointmentTranscripts.length} recording(s) together to extract medications, tasks, and follow-ups.
                 </p>
               </div>
               <button
                 onClick={handleProcessTranscript}
                 disabled={processingTranscript}
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
-                {processingTranscript ? "Processing..." : "Process Transcript"}
+                {processingTranscript ? "Processing..." : "Analyze & Create Tasks"}
               </button>
             </div>
           </section>
@@ -1090,6 +1090,7 @@ function buildSummaryPromptFromTranscripts(
 ): string | null {
   if (!transcripts.length) return null;
 
+  // Show all transcripts since we process them together
   const allText = transcripts.flatMap((t: any) => t.lines ?? []).join(" ");
   const maxChars = 400;
   const snippet =
@@ -1102,10 +1103,10 @@ function buildSummaryPromptFromTranscripts(
   }
 
   parts.push(
-    "This summary is based on the recorded conversation and is meant to help you remember the key points from your appointment.",
+    "This summary combines all recorded conversations for this appointment. Click 'Analyze & Create Tasks' to process all recordings together.",
   );
 
-  parts.push(`Transcript excerpt: ${snippet}`);
+  parts.push(`Combined transcript excerpt: ${snippet}`);
 
   return parts.join("\n\n");
 }

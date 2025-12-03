@@ -55,6 +55,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     const { appointments, addAppointment, updateAppointment, deleteAppointment } = useAppointments();
     const { medications, addMedication, updateMedication, deleteMedication } = useMedications();
 
+    // --- Backend Tasks State ---
+    const [backendTasks, setBackendTasks] = useState<Task[]>([]);
+
+    useEffect(() => {
+        fetch("/api/tasks")
+            .then(res => res.json())
+            .then(data => setBackendTasks(data))
+            .catch(err => console.error("Failed to fetch tasks:", err));
+    }, []);
+
     // --- Custom Events (Activities) State ---
     const [customEvents, setCustomEvents] = useState<CustomEvent[]>(() => {
         if (typeof window === "undefined") return [];
@@ -75,23 +85,15 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     }, [customEvents]);
 
     // --- Completion State for Generated Tasks ---
-    const [completedTaskIds, setCompletedTaskIds] = useState<string[]>(() => {
-        if (typeof window === "undefined") return [];
-        try {
-            const raw = window.localStorage.getItem("cs_completed_tasks");
-            return raw ? JSON.parse(raw) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [completedTaskIds, setCompletedTaskIds] = useState<string[]>([]);
 
+    // Clear local storage on mount to prevent stale data
     useEffect(() => {
-        try {
-            window.localStorage.setItem("cs_completed_tasks", JSON.stringify(completedTaskIds));
-        } catch {
-            // ignore
+        if (typeof window !== "undefined") {
+            window.localStorage.removeItem("cs_custom_events");
+            window.localStorage.removeItem("cs_completed_tasks");
         }
-    }, [completedTaskIds]);
+    }, []);
 
     // --- Helper: Date Comparison ---
     const isSameDay = (a: Date, b: Date) =>
@@ -247,6 +249,16 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
     // --- 3. Combine All Tasks for Calendar ---
     const calendarTasks: CalendarTask[] = useMemo(() => {
+        // Convert backend tasks to CalendarTask format
+        const dbTasks: CalendarTask[] = backendTasks.map(t => ({
+            id: `task-${t.id}`,
+            date: new Date(t.due),
+            title: t.title,
+            type: "other", // or map based on t.type
+            time: undefined,
+            originalId: t.id
+        }));
+
         const aptTasks = appointments
             .filter(apt => apt.status !== 'cancelled') // Filter cancelled/deleted
             .map((apt) => {
@@ -284,8 +296,8 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
                 originalId: t.originalId
             }));
 
-        return [...aptTasks, ...medTasks, ...activityTasks];
-    }, [appointments, generateMedicationTasks, activityTasks]);
+        return [...aptTasks, ...medTasks, ...activityTasks, ...dbTasks].sort((a, b) => a.date.getTime() - b.date.getTime());
+    }, [appointments, generateMedicationTasks, activityTasks, backendTasks]);
 
     // --- 4. Today's Checklist ---
     const todayTasks = useMemo(() => {
