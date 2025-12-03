@@ -12,6 +12,7 @@ import Chat from "@/pages/Chat";
 import Documents from "@/pages/Documents";
 import Profile from "@/pages/Profile";
 import AppointmentDetails from "@/pages/AppointmentDetails";
+import { SplashScreen } from "@/components/SplashScreen";
 
 import { AppointmentsProvider } from "@/context/AppointmentsContext";
 import { DocumentsProvider } from "@/context/DocumentsContext";
@@ -41,6 +42,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <SplashScreen />
       <TooltipProvider>
         <UserProfileProvider>
           <AppointmentsProvider>

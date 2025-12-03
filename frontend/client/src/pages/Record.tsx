@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { VoiceVisualizer } from "@/components/record/VoiceVisualizer";
 import { Mic, Square, Loader2, CheckCircle2 } from "lucide-react";
+import { motion } from "framer-motion";
+import logoReveal from "@/assets/logo-reveal.png";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 import { useAppointments } from "@/context/AppointmentsContext";
@@ -505,30 +507,53 @@ export default function Record() {
 
             {status === "done" && (
               <div className="flex flex-col items-center justify-center min-h-[70vh] text-center max-w-md">
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 text-primary">
-                  <CheckCircle2 className="w-14 h-14" />
-                </div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Recording saved</h2>
-                <p className="text-muted-foreground mb-2 text-sm">
-                  Transcription will be available soon in your appointment details.
-                </p>
-                <p className="text-sm text-primary font-medium mb-8">{completedSummary}</p>
-
-                <div className="flex flex-col gap-3 w-full">
-                  <Link href="/history">
-                    <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold text-sm">
-                      View appointment
-                    </button>
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setStatus("idle");
-                    }}
-                    className="w-full bg-secondary text-foreground py-3 rounded-lg font-medium text-sm"
+                <div className="relative mb-8">
+                  {/* Logo Background */}
+                  <motion.div
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5, type: "spring" }}
+                    className="relative z-10"
                   >
-                    Record another
-                  </button>
+                    <img
+                      src={logoReveal}
+                      alt="Success"
+                      className="w-32 h-32 object-contain drop-shadow-lg"
+                    />
+                  </motion.div>
+
+                  {/* Animated Checkmark Overlay */}
+                  <div className="absolute -bottom-2 -right-2 z-20 bg-white rounded-full p-1 shadow-md">
+                    <svg width="40" height="40" viewBox="0 0 50 50" className="stroke-green-500 fill-none stroke-[4]">
+                      <motion.path
+                        d="M 10 25 L 22 38 L 40 12"
+                        initial={{ pathLength: 0, opacity: 0 }}
+                        animate={{ pathLength: 1, opacity: 1 }}
+                        transition={{ delay: 0.4, duration: 0.5, ease: "easeOut" }}
+                      />
+                    </svg>
+                  </div>
                 </div>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                >
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Recording saved</h2>
+                  <p className="text-muted-foreground mb-2 text-sm">
+                    Transcription will be available soon in your appointment details.
+                  </p>
+                  <p className="text-sm text-primary font-medium mb-8">{completedSummary}</p>
+
+                  <div className="w-full">
+                    <Link href={attachedAppointmentId ? `/appointment/${attachedAppointmentId}` : "/history"}>
+                      <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-bold text-sm shadow-lg hover:bg-primary/90 transition-all">
+                        View Appointment
+                      </button>
+                    </Link>
+                  </div>
+                </motion.div>
               </div>
             )}
           </div>
