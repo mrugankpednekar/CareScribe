@@ -111,7 +111,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     const generateMedicationTasks = useMemo(() => {
         const tasks: { id: string; date: Date; title: string; time?: string; originalId: string }[] = [];
         const now = new Date();
-        const daysToGenerate = 60; // Generate for next 60 days
+        const daysToGenerate = 180; // Generate for next 6 months
 
         medications.forEach((med) => {
             if (!med.active) return;
@@ -121,7 +121,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
             for (let offset = 0; offset < daysToGenerate; offset++) {
                 const taskDate = new Date();
-                taskDate.setDate(now.getDate() - 5 + offset); // Start from 5 days ago
+                taskDate.setDate(now.getDate() - 30 + offset); // Start from 30 days ago
 
                 const taskDateStr = toLocalDateString(taskDate);
                 const startDateStr = toLocalDateString(startDate);
@@ -519,10 +519,20 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
             const med = medications.find(m => m.id === id);
             if (med) {
                 if (deleteSeries) {
-                    // Stop future occurrences by setting endDate to yesterday
-                    const yesterday = new Date();
-                    yesterday.setDate(yesterday.getDate() - 1);
-                    updateMedication(id, { endDate: yesterday.toISOString().split("T")[0] });
+                    const startDate = new Date(med.startDate || new Date());
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    startDate.setHours(0, 0, 0, 0);
+
+                    // If it started today or in the future, just delete it entirely
+                    if (startDate >= today) {
+                        deleteMedication(id);
+                    } else {
+                        // Otherwise stop future occurrences by setting endDate to yesterday
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        updateMedication(id, { endDate: yesterday.toISOString().split("T")[0] });
+                    }
                 } else if (date) {
                     // Just this instance
                     const skipped = med.skippedDates || [];

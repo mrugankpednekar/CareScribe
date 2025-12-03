@@ -7,6 +7,8 @@ import {
   insertTaskSchema,
   insertMessageSchema
 } from "@shared/schema";
+import multer from "multer";
+import { transcribeAudio } from "./transcription";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -97,6 +99,49 @@ export async function registerRoutes(
     }
     const message = await storage.addMessage(parsed.data);
     res.json(message);
+  });
+
+  // Transcriptions
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 } // 25MB limit
+  });
+
+  app.post("/api/transcriptions", upload.single("audio"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No audio file uploaded" });
+      }
+
+      const { appointmentId } = req.body;
+      // Use hardcoded userId to match the rest of the app's current state
+      const userId = "user-1";
+
+      // 1. Transcribe audio
+      const transcriptText = await transcribeAudio(req.file.buffer);
+
+      // 2. Save to database
+      const transcription = await storage.createTranscription({
+        userId,
+        appointmentId: appointmentId || null,
+        audioUrl: "placeholder-url", // In a real app, upload to S3/Blob storage
+        transcript: transcriptText,
+        status: "completed",
+      });
+
+      res.json(transcription);
+    } catch (error) {
+      console.error("Transcription error:", error);
+      res.status(500).json({ message: "Failed to process transcription" });
+    }
+  });
+
+  app.get("/api/transcriptions/:id", async (req, res) => {
+    const transcription = await storage.getTranscription(req.params.id);
+    if (!transcription) {
+      return res.status(404).json({ message: "Transcription not found" });
+    }
+    res.json(transcription);
   });
 
   return httpServer;

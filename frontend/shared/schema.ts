@@ -50,6 +50,17 @@ export const messages = pgTable("messages", {
   timestamp: text("timestamp").notNull(),
 });
 
+export const transcriptions = pgTable("transcriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  appointmentId: varchar("appointment_id"), // Optional link
+  audioUrl: text("audio_url").notNull(),
+  transcript: text("transcript"),
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -71,6 +82,12 @@ export const insertMessageSchema = createInsertSchema(messages).omit({
   id: true,
 });
 
+export const insertTranscriptionSchema = createInsertSchema(transcriptions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
@@ -85,3 +102,6 @@ export type Task = typeof tasks.$inferSelect;
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+export type InsertTranscription = z.infer<typeof insertTranscriptionSchema>;
+export type Transcription = typeof transcriptions.$inferSelect;

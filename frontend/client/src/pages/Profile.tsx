@@ -40,8 +40,32 @@ export default function Profile() {
 
   const [newTime, setNewTime] = useState("");
 
-  const activeMeds = medications.filter((m) => m.active);
-  const filteredMeds = activeMeds.filter((med) =>
+  const isMedActive = (m: Medication) => {
+    if (!m.active) return false;
+
+    // Check if end date has passed
+    if (m.endDate) {
+      const end = new Date(m.endDate);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      if (end < now) return false;
+    }
+
+    // Check if "once" medication is in the past
+    if (m.frequencyType === "once" && m.startDate) {
+      const start = new Date(m.startDate);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      if (start < now) return false;
+    }
+
+    return true;
+  };
+
+  const currentMeds = medications.filter(isMedActive);
+  const pastMeds = medications.filter(m => !isMedActive(m));
+
+  const filteredMeds = currentMeds.filter((med) =>
     med.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     med.prescribedBy?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     med.reason?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -291,7 +315,7 @@ export default function Profile() {
                       )}
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground uppercase">Active Meds</p>
-                        <p className="text-lg font-bold text-foreground">{activeMeds.length}</p>
+                        <p className="text-lg font-bold text-foreground">{currentMeds.length}</p>
                       </div>
                       {profile.bloodType && (
                         <div>
@@ -627,6 +651,104 @@ export default function Profile() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Past Medications Section */}
+      <div className="space-y-6 mt-12 pt-8 border-t border-border">
+        <h2 className="text-2xl font-bold text-foreground flex items-center gap-2 opacity-75">
+          <Pill className="w-6 h-6 text-muted-foreground" />
+          Past Medications
+        </h2>
+
+        {pastMeds.length > 0 ? (
+          <div className="space-y-4 opacity-75">
+            {pastMeds.map((med) => {
+              const prescribedDate = med.prescribedDate
+                ? new Date(med.prescribedDate).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+                : null;
+
+              return (
+                <div
+                  key={med.id}
+                  className="bg-card border border-border rounded-lg p-6 hover:border-muted transition-colors bg-muted/10"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-xl font-bold text-foreground">{med.name}</h3>
+                      {med.reason && (
+                        <p className="text-sm text-secondary font-medium mt-1">{med.reason}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-foreground">{med.dosage}</p>
+                      <p className="text-xs text-muted-foreground">{med.frequency}</p>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-border flex items-center gap-4 text-xs flex-wrap">
+                    {med.prescribedBy && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <User className="w-4 h-4 text-muted-foreground" />
+                        <span>
+                          <span className="font-semibold text-foreground">Prescribed by:</span> {med.prescribedBy}
+                        </span>
+                      </div>
+                    )}
+                    {prescribedDate && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span>{prescribedDate}</span>
+                      </div>
+                    )}
+                    {med.endDate && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span className="w-2 h-2 rounded-full bg-red-400" />
+                        <span>
+                          {new Date(med.endDate) < new Date(med.startDate || "")
+                            ? "Cancelled"
+                            : `Ended: ${new Date(med.endDate).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => handleEditMedication(med)}
+                      className="px-3 py-1.5 text-xs border border-border rounded-lg font-medium hover:bg-muted transition-colors flex items-center gap-1"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        // Reactivate
+                        updateMedication(med.id, { active: true, endDate: undefined });
+                      }}
+                      className="px-3 py-1.5 text-xs border border-primary/30 text-primary rounded-lg font-medium hover:bg-primary/5 transition-colors"
+                    >
+                      Reactivate
+                    </button>
+
+                    <button
+                      onClick={() => deleteMedication(med.id)}
+                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-muted-foreground text-sm italic">No past medications found.</p>
+        )}
       </div>
     </Layout>
   );

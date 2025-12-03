@@ -81,53 +81,49 @@ export default function Record() {
       mediaRecorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
 
-        try {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-
-            try {
-              // Store recording keyed by appointment (if we have one)
-              const key = attachedAppointmentId
-                ? `recordingData:${attachedAppointmentId}`
-                : "recordingData";
-              window.localStorage.setItem(key, base64);
-            } catch {
-              // localStorage might be full or unavailable
-            }
-          };
-          reader.readAsDataURL(blob);
-        } catch {
-          // ignore for now
-        }
-
         // Stop microphone
         stream.getTracks().forEach((track) => track.stop());
 
         // Simulate processing state
         setStatus("processing");
 
-        // Attach a transcript to the selected appointment
-        if (attachedAppointmentId) {
-          try {
+        try {
+          // Upload to backend
+          const formData = new FormData();
+          formData.append("audio", blob, "recording.webm");
+          if (attachedAppointmentId) {
+            formData.append("appointmentId", attachedAppointmentId);
+          }
+
+          const response = await fetch("/api/transcriptions", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to upload recording");
+          }
+
+          const transcription = await response.json();
+
+          // Attach a transcript to the selected appointment
+          if (attachedAppointmentId) {
             const apt = appointments.find((a) => a.id === attachedAppointmentId);
             if (apt) {
-              // 1. Create Document
-              const docName = `transcript-${apt.doctor.replace(/\s+/g, "_")}-${new Date().toISOString().split("T")[0]}-${new Date().toLocaleTimeString("en-US", { hour12: false }).replace(/:/g, "-")}.txt`;
+              // 1. Create Document (placeholder for now, or use the one from backend if we returned it)
+              const docName = `transcript-${apt.doctor.replace(/\s+/g, "_")}-${new Date().toISOString().split("T")[0]}.txt`;
               const doc = addDocument({
                 appointmentId: attachedAppointmentId,
                 name: docName,
-                sizeBytes: 1024,
+                sizeBytes: blob.size,
                 mimeType: "text/plain",
               });
 
               // 2. Create Transcript linked to Document
+              // We use the text returned from backend
               const transcript = addTranscript({
                 appointmentId: attachedAppointmentId,
-                lines: [
-                  "Audio visit recorded with CareScribe.",
-                  "Transcription service is not wired up yet, this is a demo transcript attached to your visit.",
-                ],
+                lines: transcription.transcript ? transcription.transcript.split("\n") : ["Processing..."],
                 documentId: doc.id
               });
 
@@ -140,17 +136,18 @@ export default function Record() {
                 documentIds: nextDocIds
               });
             }
-          } catch (err) {
-            console.error("Failed to attach transcript to appointment", err);
           }
+        } catch (err) {
+          console.error("Failed to upload/transcribe", err);
+          setMicError("Failed to save recording. Please try again.");
         }
 
         setTimeout(() => {
           setStatus("done");
-        }, 2000);
+        }, 1000);
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
       setStatus("recording");
     } catch (err) {
       console.error("Error accessing microphone", err);
