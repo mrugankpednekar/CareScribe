@@ -1,26 +1,74 @@
 import { useState } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { mockMessages } from "@/lib/mockData";
 import { Send, Bot, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { ChatMessage } from "@/lib/types";
+import { useAppointments } from "@/context/AppointmentsContext";
+import { useMedications } from "@/context/MedicationsContext";
+import { useTranscripts } from "@/context/TranscriptsContext";
+import { useCalendar } from "@/context/CalendarContext";
 
 export default function Chat() {
-  const [messages, setMessages] = useState(mockMessages.filter(m => m.role !== "system"));
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      content: "Hi! Ask me about your appointments, medications, or transcripts and I'll help summarize.",
+    },
+  ]);
   const [input, setInput] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { appointments } = useAppointments();
+  const { medications } = useMedications();
+  const { transcripts } = useTranscripts();
+  const { todayTasks } = useCalendar();
 
   const handleSend = () => {
-    if (!input.trim()) return;
-    
-    setMessages([...messages, { role: "user", content: input }]);
+    const trimmed = input.trim();
+    if (!trimmed || isSending) return;
+    setError(null);
+
+    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: "user", content: trimmed };
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     setInput("");
 
-    setTimeout(() => {
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: "I'm a demo. In the real app, I'd answer based on your medical records." 
-      }]);
-    }, 1000);
+    void sendToApi(nextMessages);
+  };
+
+  const sendToApi = async (history: ChatMessage[]) => {
+    try {
+      setIsSending(true);
+      const context = {
+        appointments,
+        medications,
+        tasks: todayTasks,
+        transcripts,
+      };
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+          context,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Request failed: ${res.status}`);
+      }
+      const data = await res.json();
+      const replyText = data?.reply || "I couldn't generate a response.";
+      const botMessage: ChatMessage = { id: `assistant-${Date.now()}`, role: "assistant", content: replyText };
+      setMessages((prev) => [...prev, botMessage]);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Something went wrong.");
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -62,14 +110,24 @@ export default function Chat() {
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Ask a question..." 
             className="flex-1 h-10"
+            disabled={isSending}
           />
           <button 
             onClick={handleSend}
-            className="bg-primary text-primary-foreground w-10 h-10 rounded-lg flex items-center justify-center hover:bg-primary/90"
+            className="bg-primary text-primary-foreground w-10 h-10 rounded-lg flex items-center justify-center hover:bg-primary/90 disabled:opacity-50"
+            disabled={isSending}
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
+
+        {error && (
+          <p className="text-xs text-red-500 mt-2">{error}</p>
+        )}
+
+        {isSending && (
+          <p className="text-xs text-muted-foreground mt-1">Thinking...</p>
+        )}
       </div>
     </Layout>
   );

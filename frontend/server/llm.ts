@@ -3,6 +3,11 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Lazy initialization
 let genAI: GoogleGenerativeAI | null = null;
 
+export type ChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
+
 function getGenAI() {
   if (genAI) return genAI;
 
@@ -197,5 +202,45 @@ Today's date: ${new Date().toISOString().split('T')[0]}`;
       activities: [],
       followUp: null
     };
+  }
+}
+
+/**
+ * Generate a chat response using the user's medical context and prior messages.
+ * If the model lacks enough detail, it should say so instead of inventing facts.
+ */
+export async function generateChatReply(
+  messages: ChatMessage[],
+  context: Record<string, unknown>,
+): Promise<string> {
+  try {
+    const ai = getGenAI();
+    const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    const systemPrompt = `You are CareScribe, a concise medical scribe/assistant for the patient.
+You have structured context about the user's data (appointments, medications, tasks, transcripts, activities).
+Use ONLY what is in the provided JSON context or chat history. If unsure or data is missing, say so and suggest what you need.
+Be brief (<=150 words), avoid PHI leakage beyond what's already provided, and never fabricate dates, times, or medications.`;
+
+    const history = messages
+      .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+      .join("\n");
+
+    const prompt = `${systemPrompt}
+
+CONTEXT (JSON):
+${JSON.stringify(context, null, 2)}
+
+CHAT HISTORY:
+${history}
+
+Answer the user's latest question based only on the context/history. If you cannot answer from the context, state that you don't have enough information.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text().trim();
+  } catch (error) {
+    console.error("Gemini Chat Error:", error);
+    throw error;
   }
 }

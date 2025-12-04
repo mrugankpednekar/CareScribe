@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import multer from "multer";
 import { transcribeAudio } from "./transcription";
-import { processTranscript } from "./llm";
+import { processTranscript, generateChatReply, type ChatMessage } from "./llm";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -331,5 +331,90 @@ export async function registerRoutes(
     }
   });
 
+  // Chat endpoint with full user context
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const userId = "user-1";
+      const messages = (req.body?.messages || []) as ChatMessage[];
+      const clientContext = (req.body?.context || {}) as Record<string, unknown>;
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ message: "messages array required" });
+      }
+
+      const serverContext = await buildUserContext(userId);
+      const context = { ...serverContext, ...clientContext };
+      try {
+        const reply = await generateChatReply(messages, context);
+        return res.json({ reply });
+      } catch (err) {
+        console.error("Chat LLM failed, falling back to heuristic:", err);
+        const fallback = buildHeuristicReply(messages[messages.length - 1]?.content || "", context);
+        return res.json({ reply: fallback });
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(500).json({ message: "Failed to generate chat response" });
+    }
+  });
+
   return httpServer;
+}
+
+async function buildUserContext(userId: string) {
+  const [appointments, medications, tasks, transcriptions] = await Promise.all([
+    storage.getAppointments(userId),
+    storage.getMedications(userId),
+    storage.getTasks(userId),
+    storage.getTranscriptions(userId),
+  ]);
+
+  // Keep transcripts concise for the LLM
+  const recentTranscripts = transcriptions
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+    .map((t) => ({
+      id: t.id,
+      appointmentId: t.appointmentId,
+      transcript: t.transcript,
+      createdAt: t.createdAt,
+    }));
+
+  return {
+    appointments,
+    medications,
+    tasks,
+    transcriptions: recentTranscripts,
+  };
+}
+
+// Simple heuristic fallback when LLM is unavailable
+function buildHeuristicReply(latestUserMessage: string, context: Awaited<ReturnType<typeof buildUserContext>>): string {
+  const msg = latestUserMessage.toLowerCase();
+
+  const upcomingApts = (context.appointments || []).filter(a => a.date && a.status !== "cancelled")
+    .sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime())
+    .slice(0, 5);
+
+  const activeMeds = (context.medications || []).filter(m => m.active);
+
+  if (msg.includes("appointment")) {
+    if (!upcomingApts.length) return "You have no upcoming appointments in your record.";
+    const lines = upcomingApts.map(a => {
+      const when = a.date ? new Date(a.date).toLocaleString() : "unscheduled";
+      return `${a.doctor || "Provider"} on ${when} (${a.reason || "no reason recorded"})`;
+    });
+    return `Upcoming appointments:\n- ${lines.join("\n- ")}`;
+  }
+
+  if (msg.includes("med") || msg.includes("prescription")) {
+    if (!activeMeds.length) return "You have no active medications in your record.";
+    const lines = activeMeds.map(m => {
+      const times = m.times && m.times.length ? ` at ${m.times.join(", ")}` : "";
+      const freq = m.frequency || m.frequencyType || "";
+      return `${m.name} ${m.dosage || ""} (${freq}${times})`;
+    });
+    return `Active medications:\n- ${lines.join("\n- ")}`;
+  }
+
+  return "I don't have enough context to answer that. Try asking about your appointments or medications.";
 }
