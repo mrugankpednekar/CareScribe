@@ -189,12 +189,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         const events: CalendarTask[] = [];
 
         customEvents.forEach((ev) => {
-            const startDate = new Date(ev.date);
             const parseLocal = (s: string) => {
-                const [y, m, d] = s.split("-").map(Number);
+                const cleanStr = s.split("T")[0];
+                const [y, m, d] = cleanStr.split("-").map(Number);
                 return new Date(y, m - 1, d);
             };
-            // const startDate = parseLocal(ev.date);
+            const startDate = parseLocal(ev.date);
             const endDate = ev.endDate ? parseLocal(ev.endDate) : null;
 
             if (!ev.frequencyType || ev.frequencyType === "once") {

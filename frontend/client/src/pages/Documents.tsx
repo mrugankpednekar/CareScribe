@@ -18,6 +18,27 @@ import { Input } from "@/components/ui/input";
 import type { DocumentMeta } from "@/lib/types";
 import { jsPDF } from "jspdf";
 
+const getLogoBase64 = (): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.src = "/favicon.png";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = (e) => reject(e);
+  });
+};
+
 export default function Documents() {
   const [, setLocation] = useLocation();
   const { appointments, updateAppointment } = useAppointments();
@@ -146,7 +167,7 @@ export default function Documents() {
     setPreviewDoc(null);
   };
 
-  const handleDownload = (doc: DocumentMeta) => {
+  const handleDownload = async (doc: DocumentMeta) => {
     // Check if transcript
     const transcript = transcripts.find(t => t.documentId === doc.id);
     if (transcript) {
@@ -156,8 +177,15 @@ export default function Documents() {
       const margin = 10;
       const maxLineWidth = pageWidth - margin * 2;
 
-      pdf.setFontSize(16);
-      pdf.text(doc.name, margin, 20);
+      try {
+        const logo = await getLogoBase64();
+        pdf.addImage(logo, "PNG", margin, 10, 12, 12);
+        pdf.setFontSize(16);
+        pdf.text(doc.name, margin + 16, 20);
+      } catch (e) {
+        pdf.setFontSize(16);
+        pdf.text(doc.name, margin, 20);
+      }
       pdf.setFontSize(10);
       pdf.text(`Generated on ${new Date().toLocaleDateString()}`, margin, 30);
 
@@ -288,10 +316,19 @@ export default function Documents() {
       let y = 20;
 
       // --- Main Header ---
-      pdf.setFontSize(24);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(44, 105, 117); // Deep Teal
-      pdf.text("CareScribe Medical History", margin, y);
+      try {
+        const logo = await getLogoBase64();
+        pdf.addImage(logo, "PNG", margin, y - 8, 12, 12);
+        pdf.setFontSize(24);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117); // Deep Teal
+        pdf.text("CareScribe Medical History", margin + 16, y);
+      } catch (e) {
+        pdf.setFontSize(24);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117); // Deep Teal
+        pdf.text("CareScribe Medical History", margin, y);
+      }
       y += 10;
 
       pdf.setFontSize(10);
@@ -454,10 +491,19 @@ export default function Documents() {
       let y = 20;
 
       // --- Header ---
-      pdf.setFontSize(22);
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(44, 105, 117); // Deep Teal
-      pdf.text("CareScribe Medical Summary", margin, y);
+      try {
+        const logo = await getLogoBase64();
+        pdf.addImage(logo, "PNG", margin, y - 8, 12, 12);
+        pdf.setFontSize(22);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117); // Deep Teal
+        pdf.text("CareScribe Medical Summary", margin + 16, y);
+      } catch (e) {
+        pdf.setFontSize(22);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117); // Deep Teal
+        pdf.text("CareScribe Medical Summary", margin, y);
+      }
       y += 12;
 
       // --- Meta Info ---

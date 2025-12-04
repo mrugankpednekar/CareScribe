@@ -352,7 +352,9 @@ export default function AppointmentDetails() {
           processed.medications?.forEach((med: any) => {
             const frequencyType = deriveFrequencyType(med.frequencyType, med.frequency || "");
             const times = deriveTimes(med.times, med.frequency || "");
-            const startDate = med.startDate || new Date().toISOString().split("T")[0];
+            // Default to appointment date if no start date provided
+            const defaultStartDate = appointment.date ? appointment.date.split("T")[0] : new Date().toLocaleDateString("en-CA");
+            const startDate = med.startDate || defaultStartDate;
             const endDate = deriveEndDate(med.endDate, med.frequency, startDate);
             const selectedDays = med.selectedDays
               ?? parseSelectedDaysFromFrequency(med.frequency)
@@ -452,7 +454,9 @@ export default function AppointmentDetails() {
 
           // 6) Add activities as custom events (avoid duplicate titles on same day)
           processed.activities?.forEach((act: any, idx: number) => {
-            const date = act.due || act.startDate || new Date().toISOString().split("T")[0];
+            // Default to appointment date if no date provided
+            const defaultDate = appointment.date ? appointment.date.split("T")[0] : new Date().toLocaleDateString("en-CA");
+            const date = act.due || act.startDate || defaultDate;
             const activityFrequency = act.frequencyType || deriveActivityFrequency(act.title);
             const selectedDays = act.selectedDays
               ?? (activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : []);
