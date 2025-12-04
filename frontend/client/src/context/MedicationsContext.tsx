@@ -18,7 +18,7 @@ interface MedicationsContextValue {
 
 const MedicationsContext = createContext<MedicationsContextValue | undefined>(undefined);
 
-const MEDICATIONS_KEY = "cs_medications";
+const MEDICATIONS_KEY = "cs_medications_v2";
 
 function loadInitialMedications(): Medication[] {
   if (typeof window === "undefined") return [];

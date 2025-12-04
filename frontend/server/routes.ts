@@ -194,12 +194,18 @@ export async function registerRoutes(
 
       console.log(`Processing ${allTranscriptions.length} transcript(s) for appointment ${appointmentId}`);
 
-      const processed = await processTranscript(combinedText);
+      // Fetch appointment details to pass to LLM
+      const existingApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
+
+      const processed = await processTranscript(combinedText, existingApt ? {
+        doctor: existingApt.doctor,
+        date: existingApt.date,
+        appointmentId: existingApt.id
+      } : undefined);
+
       console.log("Manual AI Processing:", JSON.stringify(processed, null, 2));
 
-      if (appointmentId) {
-        // Get existing appointment data to check for duplicates
-        const existingApt = (await storage.getAppointments(userId)).find(a => a.id === appointmentId);
+      if (appointmentId && existingApt) {
         const existingMeds = await storage.getMedications(userId);
         const existingTasks = await storage.getTasks(userId);
 
@@ -229,20 +235,68 @@ export async function registerRoutes(
           }
         }
 
-        // Create Tasks (check for duplicates by title)
-        for (const task of processed.tasks) {
+        // Create Appointments
+        for (const apt of processed.appointments) {
+          const duplicate = (await storage.getAppointments(userId)).find(
+            a => a.date === apt.date && a.doctor === apt.doctor
+          );
+          if (!duplicate) {
+            await storage.createAppointment({
+              userId,
+              doctor: apt.doctor,
+              specialty: apt.specialty,
+              date: apt.date,
+              reason: apt.reason,
+              status: "upcoming",
+              diagnosis: null,
+              notes: null,
+              instructions: null
+            });
+          }
+        }
+
+        // Create Labs (as Appointments with type='lab')
+        for (const lab of processed.labs) {
+          const duplicate = (await storage.getAppointments(userId)).find(
+            a => a.date === lab.date && a.labType === lab.labType
+          );
+          if (!duplicate) {
+            await storage.createAppointment({
+              userId,
+              doctor: existingApt?.doctor || "Lab",
+              specialty: "Lab",
+              date: lab.date,
+              reason: lab.reason,
+              status: "upcoming",
+              type: "lab",
+              labType: lab.labType,
+              attachedProviderId: appointmentId,
+              diagnosis: null,
+              notes: null,
+              instructions: null
+            });
+          }
+        }
+
+        // Create Activities (Tasks)
+        console.log('Processing activities:', processed.activities);
+        for (const activity of processed.activities) {
           const duplicate = existingTasks.find(
-            t => t.title.toLowerCase().trim() === task.title.toLowerCase().trim() &&
+            t => t.title.toLowerCase().trim() === activity.title.toLowerCase().trim() &&
               !t.completed
           );
           if (!duplicate) {
-            await storage.createTask({
+            console.log('Creating activity task:', activity);
+            const created = await storage.createTask({
               userId,
-              title: task.title,
-              type: task.type || "general", // Use AI type or fallback
-              due: task.due || new Date().toISOString(),
+              title: activity.title,
+              type: "activity",
+              due: activity.due || new Date().toISOString(),
               completed: false,
             });
+            console.log('Created task:', created);
+          } else {
+            console.log('Skipping duplicate activity:', activity.title);
           }
         }
 

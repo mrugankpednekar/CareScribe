@@ -18,7 +18,7 @@ interface TranscriptsContextValue {
 
 const TranscriptsContext = createContext<TranscriptsContextValue | undefined>(undefined);
 
-const TRANSCRIPTS_KEY = "cs_transcripts";
+const TRANSCRIPTS_KEY = "cs_transcripts_v2";
 
 function loadInitialTranscripts(): Transcript[] {
   if (typeof window === "undefined") return [];

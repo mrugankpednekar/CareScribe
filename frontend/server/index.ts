@@ -4,6 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import crypto from "crypto";
+import { ensureDbSchema } from "./db";
 
 // Polyfill for Node.js versions < 21.7.0 which miss crypto.hash
 if (!(crypto as any).hash) {
@@ -71,6 +72,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    await ensureDbSchema();
+  } catch (err) {
+    console.error("Failed to ensure database schema:", err);
+  }
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

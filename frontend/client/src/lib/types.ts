@@ -5,7 +5,7 @@ export type AppointmentStatus = "upcoming" | "completed" | "cancelled";
 export interface Medication {
   id: string;
   name: string;
-  dosage: string;
+  dosage?: string;
   frequency: string; // e.g., "Once daily", "Twice daily", "Every 8 hours"
   active: boolean;
   // Calendar scheduling fields

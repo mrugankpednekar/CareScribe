@@ -22,7 +22,7 @@ const DocumentsContext = createContext<DocumentsContextValue | undefined>(
   undefined,
 );
 
-const DOCUMENTS_KEY = "cs_documents";
+const DOCUMENTS_KEY = "cs_documents_v2";
 
 function loadInitialDocuments(): DocumentMeta[] {
   if (typeof window === "undefined") return [];

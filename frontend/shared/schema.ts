@@ -12,6 +12,7 @@ export const users = pgTable("users", {
 export const appointments = pgTable("appointments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(), // In a real app, reference users.id
+  type: text("type"), // "appointment" | "lab"
   date: text("date").notNull(), // ISO string
   doctor: text("doctor").notNull(),
   specialty: text("specialty").notNull(),
@@ -20,13 +21,15 @@ export const appointments = pgTable("appointments", {
   notes: text("notes"),
   status: text("status").notNull(), // "completed" | "upcoming" | "processing"
   instructions: text("instructions").array(),
+  labType: text("lab_type"), // For labs: "Blood Work", "X-Ray", etc.
+  attachedProviderId: varchar("attached_provider_id"), // For labs: link to ordering provider
 });
 
 export const medications = pgTable("medications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull(),
   name: text("name").notNull(),
-  dosage: text("dosage").notNull(),
+  dosage: text("dosage"),
   frequency: text("frequency").notNull(),
   reason: text("reason").notNull(),
   active: boolean("active").notNull().default(true),

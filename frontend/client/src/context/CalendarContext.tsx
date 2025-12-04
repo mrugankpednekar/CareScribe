@@ -69,7 +69,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     const [customEvents, setCustomEvents] = useState<CustomEvent[]>(() => {
         if (typeof window === "undefined") return [];
         try {
-            const raw = window.localStorage.getItem("cs_custom_events");
+            const raw = window.localStorage.getItem("cs_custom_events_v2");
             return raw ? JSON.parse(raw) : [];
         } catch {
             return [];
@@ -78,7 +78,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         try {
-            window.localStorage.setItem("cs_custom_events", JSON.stringify(customEvents));
+            window.localStorage.setItem("cs_custom_events_v2", JSON.stringify(customEvents));
         } catch {
             // ignore
         }
@@ -90,7 +90,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     // Clear local storage on mount to prevent stale data
     useEffect(() => {
         if (typeof window !== "undefined") {
-            window.localStorage.removeItem("cs_custom_events");
+            window.localStorage.removeItem("cs_custom_events_v2");
             window.localStorage.removeItem("cs_completed_tasks");
         }
     }, []);
@@ -279,22 +279,14 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
             })
             .filter(Boolean) as CalendarTask[];
 
-        const seenMedDays = new Set<string>();
-        const medTasks = generateMedicationTasks
-            .filter(t => {
-                const key = `${t.originalId}-${t.date.toISOString().split("T")[0]}`;
-                if (seenMedDays.has(key)) return false;
-                seenMedDays.add(key);
-                return true;
-            })
-            .map((t) => ({
-                id: t.id,
-                date: t.date,
-                title: t.title,
-                type: "medication" as EventType,
-                time: t.time,
-                originalId: t.originalId
-            }));
+        const medTasks = generateMedicationTasks.map((t) => ({
+            id: t.id,
+            date: t.date,
+            title: t.title,
+            type: "medication" as EventType,
+            time: t.time,
+            originalId: t.originalId
+        }));
 
         return [...aptTasks, ...medTasks, ...activityTasks, ...dbTasks].sort((a, b) => a.date.getTime() - b.date.getTime());
     }, [appointments, generateMedicationTasks, activityTasks, backendTasks]);
@@ -357,7 +349,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<AppNotification[]>(() => {
         if (typeof window === "undefined") return [];
         try {
-            const raw = window.localStorage.getItem("cs_notifications");
+            const raw = window.localStorage.getItem("cs_notifications_v2");
             return raw ? JSON.parse(raw) : [];
         } catch {
             return [];
@@ -366,7 +358,7 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         try {
-            window.localStorage.setItem("cs_notifications", JSON.stringify(notifications));
+            window.localStorage.setItem("cs_notifications_v2", JSON.stringify(notifications));
         } catch {
             // ignore
         }

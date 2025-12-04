@@ -15,7 +15,7 @@ interface UserProfileContextValue {
 
 const UserProfileContext = createContext<UserProfileContextValue | undefined>(undefined);
 
-const USER_PROFILE_KEY = "cs_user_profile";
+const USER_PROFILE_KEY = "cs_user_profile_v2";
 
 const defaultProfile: UserProfile = {
   id: "user-1",

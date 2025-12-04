@@ -20,7 +20,7 @@ interface AppointmentsContextValue {
 
 const AppointmentsContext = createContext<AppointmentsContextValue | undefined>(undefined);
 
-const APPOINTMENTS_KEY = "cs_appointments";
+const APPOINTMENTS_KEY = "cs_appointments_v2";
 
 function normalizeInitialAppointments(): Appointment[] {
   return mockAppointments.map((apt: any) => {

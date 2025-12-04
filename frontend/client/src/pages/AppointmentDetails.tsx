@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { useAppointments } from "@/context/AppointmentsContext";
+import { useMedications } from "@/context/MedicationsContext";
+import { useCalendar } from "@/context/CalendarContext";
 import { useTranscripts } from "@/context/TranscriptsContext";
 import { useDocuments } from "@/context/DocumentsContext";
 import type { Appointment, Transcript, DocumentMeta } from "@/lib/types";
@@ -31,6 +33,8 @@ export default function AppointmentDetails() {
     deleteTranscript,
   } = useTranscripts();
   const { documents, detachDocumentsFromAppointment, deleteDocument } = useDocuments();
+  const { medications, addMedication } = useMedications();
+  const { addEvent, customEvents } = useCalendar();
 
   const [match, params] = useRoute<{ id: string }>("/appointment/:id");
   const appointmentId = params?.id;
@@ -310,7 +314,135 @@ export default function AppointmentDetails() {
       const result = await response.json();
       console.log("AI Processing Result:", result);
 
-      window.location.reload();
+      // Update local state to mirror what backend created so the UI reflects changes immediately.
+      const processed = result?.processed;
+      if (processed) {
+        // 1) Update the current appointment details
+        const updates: Partial<Appointment> = {};
+        if (processed.diagnosis) updates.diagnosis = [processed.diagnosis];
+        if (processed.instructions) updates.instructions = [processed.instructions];
+        if (processed.notes) updates.notes = processed.notes;
+        updateAppointment(appointment.id, updates);
+
+        // 2) Add medications (avoid duplicates by name + appointment)
+        processed.medications?.forEach((med: any) => {
+          const frequencyType = deriveFrequencyType(med.frequencyType, med.frequency);
+          const times = deriveTimes(med.times, med.frequency, frequencyType);
+          const startDate = med.startDate || new Date().toISOString().split("T")[0];
+          const endDate = deriveEndDate(med.endDate, med.frequency, startDate);
+
+          const dup = medications.find(
+            m =>
+              m.name.toLowerCase().trim() === (med.name || "").toLowerCase().trim() &&
+              m.appointmentId === appointment.id,
+          );
+          if (!dup) {
+            addMedication({
+              name: med.name,
+              dosage: med.dosage || "",
+              frequency: med.frequency || "Once daily",
+              active: true,
+              times,
+              startDate,
+              endDate,
+              prescribedBy: med.prescribedBy || appointment.doctor,
+              prescribedDate: med.prescribedDate || appointment.date,
+              appointmentId: appointment.id,
+              reason: med.reason,
+              frequencyType,
+              selectedDays: med.selectedDays || (frequencyType === "weekly" ? [new Date(startDate).getDay()] : []),
+            });
+          }
+        });
+
+        // 3) Add follow-up appointment if returned
+        if (processed.followUp?.date) {
+          const exists = appointments.find(
+            a =>
+              a.date === processed.followUp.date &&
+              (a.reason || "").toLowerCase().includes("follow"),
+          );
+          if (!exists) {
+            addEvent({
+              type: "appointment",
+              date: processed.followUp.date,
+              doctor: appointment.doctor,
+              specialty: appointment.specialty || "General",
+              reason: processed.followUp.reason || "Follow-up",
+              status: "upcoming",
+              diagnosis: [],
+              instructions: [],
+            });
+          }
+        }
+
+        // 4) Add any additional appointments returned by the model
+        processed.appointments?.forEach((apt: any) => {
+          const exists = appointments.find(
+            a => a.date === apt.date && a.doctor === apt.doctor,
+          );
+          if (!exists) {
+            addEvent({
+              type: "appointment",
+              date: apt.date,
+              doctor: apt.doctor,
+              specialty: apt.specialty,
+              reason: apt.reason,
+              status: "upcoming",
+              diagnosis: [],
+              instructions: [],
+            });
+          }
+        });
+
+        // 5) Add labs as lab-type appointments
+        processed.labs?.forEach((lab: any) => {
+          const exists = appointments.find(
+            a => a.type === "lab" && a.date === lab.date && a.labType === lab.labType,
+          );
+          if (!exists) {
+            addEvent({
+              type: "lab",
+              labType: lab.labType,
+              date: lab.date,
+              doctor: appointment.doctor || "Lab",
+              reason: lab.reason,
+              status: "upcoming",
+              diagnosis: [],
+              instructions: [],
+              attachedProviderId: appointment.id,
+            });
+          }
+        });
+
+        // 6) Add activities as custom events (avoid duplicate titles on same day)
+        processed.activities?.forEach((act: any, idx: number) => {
+          const date = act.due || new Date().toISOString().split("T")[0];
+          const activityFrequency = deriveActivityFrequency(act.title);
+          const selectedDays =
+            activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : [];
+          const dup = customEvents.find(
+            e =>
+              e.type === "activity" &&
+              e.title.toLowerCase().trim() === (act.title || "").toLowerCase().trim() &&
+              e.date === date,
+          );
+          if (!dup) {
+            addEvent({
+              id: `ai-activity-${idx}-${Date.now()}`,
+              title: act.title,
+              description: act.reason,
+              date,
+              time: undefined,
+              allDay: true,
+              type: "activity",
+              completed: false,
+              frequencyType: activityFrequency,
+              selectedDays,
+            });
+          }
+        });
+      }
     } catch (error) {
       console.error("Manual AI processing error:", error);
       alert("Failed to process transcript. Please try again.");
@@ -1109,4 +1241,120 @@ function buildSummaryPromptFromTranscripts(
   parts.push(`Combined transcript excerpt: ${snippet}`);
 
   return parts.join("\n\n");
+}
+
+function deriveFrequencyType(
+  provided: "daily" | "weekly" | "once" | undefined,
+  frequencyText?: string,
+): "daily" | "weekly" | "once" {
+  if (provided) return provided;
+  const text = (frequencyText || "").toLowerCase();
+  if (text.includes("weekly") || text.includes("every week")) return "weekly";
+  if (text.includes("once") || text.includes("one time")) return "once";
+  // default to daily if unsure
+  return "daily";
+}
+
+function deriveTimes(
+  existing: string[] | undefined,
+  frequencyText: string | undefined,
+  frequencyType: "daily" | "weekly" | "once",
+): string[] {
+  if (existing && existing.length) return existing;
+  const text = (frequencyText || "").toLowerCase();
+
+  // 1) Explicit times in text (e.g., "8:00 AM and 9pm")
+  const explicit = extractTimes(text);
+  if (explicit.length) return explicit;
+
+  // 2) Keyword-based counts
+  if (text.match(/\b(twice|2x|two)\b/)) return ["08:00", "21:00"];
+  if (text.match(/\b(thrice|three|3x)\b/)) return ["08:00", "14:00", "21:00"];
+  if (text.match(/\b(four|4x)\b/)) return ["06:00", "12:00", "18:00", "23:00"];
+  if (text.includes("every 8 hours")) return ["06:00", "14:00", "22:00"];
+  if (text.includes("every 6 hours")) return ["06:00", "12:00", "18:00", "00:00"];
+  if (text.includes("every 12 hours")) return ["08:00", "20:00"];
+
+  // 3) Morning/evening cues
+  if (text.includes("morning") && text.includes("night")) return ["08:00", "21:00"];
+  if (text.includes("morning") && text.includes("afternoon")) return ["08:00", "14:00"];
+  if (text.includes("morning")) return ["08:00"];
+  if (text.includes("afternoon")) return ["14:00"];
+  if (text.includes("evening") || text.includes("night") || text.includes("bedtime")) return ["21:00"];
+
+  // 4) Frequency type fallbacks
+  if (frequencyType === "daily") return ["08:00"];
+  if (frequencyType === "weekly") return ["08:00"];
+  if (frequencyType === "once") return ["08:00"];
+
+  return ["08:00"];
+}
+
+function deriveEndDate(
+  providedEnd: string | undefined,
+  frequencyText: string | undefined,
+  startDateIso: string,
+): string | undefined {
+  if (providedEnd) return providedEnd;
+  if (!frequencyText) return undefined;
+
+  const wordToNum: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  };
+
+  const match = frequencyText
+    .toLowerCase()
+    .match(/(for\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[-\s]*(day|days)\b/);
+
+  if (match) {
+    const raw = match[2];
+    const days = Number.isNaN(Number(raw)) ? wordToNum[raw as keyof typeof wordToNum] : parseInt(raw, 10);
+    if (!Number.isNaN(days) && days > 0) {
+      const start = new Date(startDateIso || new Date().toISOString());
+      start.setDate(start.getDate() + (days - 1));
+      return start.toISOString().split("T")[0];
+    }
+  }
+
+  return undefined;
+}
+
+function deriveActivityFrequency(title: string | undefined): "daily" | "weekly" | "once" {
+  const text = (title || "").toLowerCase();
+  if (text.includes("daily") || text.includes("every day") || text.includes("each day")) {
+    return "daily";
+  }
+  if (text.includes("weekly") || text.includes("every week")) {
+    return "weekly";
+  }
+  return "once";
+}
+
+function extractTimes(text: string): string[] {
+  const times: string[] = [];
+  const regex = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const hourNum = parseInt(match[1], 10);
+    const minuteNum = match[2] ? parseInt(match[2], 10) : 0;
+    const hasColon = Boolean(match[2]);
+    const meridiem = match[3];
+
+    // Skip plain numbers without context (e.g., "every 8 hours")
+    if (!meridiem && !hasColon) continue;
+    if (hourNum > 24 || minuteNum > 59) continue;
+
+    let hour24 = hourNum % 24;
+    if (meridiem) {
+      const isPM = meridiem.toLowerCase() === "pm";
+      if (isPM && hourNum < 12) hour24 = hourNum + 12;
+      if (!isPM && hourNum === 12) hour24 = 0;
+    }
+
+    const hh = hour24.toString().padStart(2, "0");
+    const mm = minuteNum.toString().padStart(2, "0");
+    const timeStr = `${hh}:${mm}`;
+    if (!times.includes(timeStr)) times.push(timeStr);
+  }
+  return times;
 }
