@@ -65,37 +65,85 @@ export async function processTranscript(
     const ai = getGenAI();
     const model = ai.getGenerativeModel({ model: "gemini-2.5-flash" });
 
+    const contextBlock = appointmentDetails
+      ? `Context (current visit): doctor="${appointmentDetails.doctor ?? "Unknown"}", date="${appointmentDetails.date ?? "Unknown"}", appointmentId="${appointmentDetails.appointmentId ?? "Unknown"}". Use this to tie medications/follow-ups to this visit when appropriate.`
+      : "Context: no specific appointment details provided.";
+
     const prompt = `Extract medical information from this doctor-patient conversation and return ONLY valid JSON.
+
+${contextBlock}
 
 Conversation (may contain multiple segments):
 "${transcript}"
 
 INSTRUCTIONS:
-1. Combine information from all segments into a single cohesive record.
-2. **Medications**: Extract ANY prescribed drugs, supplements, or over-the-counter medicines.
-   - **Dosage**: Optional. If not mentioned, omit it.
-   - **Frequency**: Describe how often (e.g., "twice daily").
-   - **Frequency Type**: Classify as "daily", "weekly", or "once".
-   - **Reason**: Extract the reason for the medication from the context (e.g., "for pain", "for blood pressure").
-   - Example: "Take Ibuprofen 200mg twice a day for pain" -> {"name": "Ibuprofen", "dosage": "200mg", "frequency": "twice daily", "frequencyType": "daily", "reason": "pain"}
-3. **Appointments**: Extract future doctor visits.
-   - Example: "See Dr. Smith next Tuesday" -> {"doctor": "Dr. Smith", "specialty": "General", "date": "2025-12-10", "reason": "Follow-up"}
-4. **Labs**: Extract lab tests or imaging.
-   - Example: "Get blood work done" -> {"labType": "Blood Work", "date": "2025-12-06", "reason": "Routine check"}
-5. **Activities**: Extract physical activities or other tasks.
-   - Example: "Walk for 10 mins daily" -> {"title": "Daily 10 min walk", "due": "2025-12-05", "type": "activity"}
-6. **Duplicates**: If a task or medication is mentioned multiple times, merge them into one entry. Use the most specific description.
-7. Return ONLY valid JSON.
+1. Combine all conversation segments into one cohesive record.
+2. Return ONLY these item categories and only the fields listed. If a field is not explicitly given, set it to null or an empty array (do NOT invent values).
+
+   **Medications**
+   - name (required)
+   - dosage (optional)
+   - frequency (string, human text)
+   - frequencyType: "daily" | "weekly" | "once"
+   - times: array of "HH:MM" in 24h, ONLY if stated; otherwise []
+   - startDate: "YYYY-MM-DD" or null
+   - endDate: "YYYY-MM-DD" or null (compute if duration like "for 2 weeks" is given; otherwise null)
+   - selectedDays: array of numbers 0-6 (Sun-Sat) ONLY if days are explicitly listed; otherwise []
+   - reason (optional string)
+
+   **Appointments**
+   - doctor (required)
+   - specialty (optional)
+   - date: "YYYY-MM-DD"
+   - reason (string)
+
+   **Labs**
+   - labType (required)
+   - date: "YYYY-MM-DD"
+   - reason (string)
+
+   **Activities**
+   - title (required)
+   - due: "YYYY-MM-DD" or null (start date if provided)
+   - type: always "activity"
+   - frequencyType: "daily" | "weekly" | "once"
+   - selectedDays: array of numbers 0-6 for weekly schedules ONLY if days are explicitly listed; otherwise []
+   - startDate: "YYYY-MM-DD" or null
+   - endDate: "YYYY-MM-DD" or null (compute if duration given; else null)
+
+3. Appointments: include follow-ups explicitly mentioned (e.g., "come back in 2 weeks") using computed dates when no absolute date is given.
+4. Labs: same structure as above; leave optional fields null/empty if absent.
+5. Activities: honor frequency/duration if stated; otherwise leave fields empty/null.
+6. Duplicates: merge repeated mentions into a single entry using the most specific details.
+7. Output ONLY valid JSON that matches the schema below. Do not include any extra text.
 
 Return this exact JSON structure (replace values as needed):
 {
   "diagnosis": "string or null",
   "notes": "brief summary or null",
   "instructions": "patient instructions or null",
-  "medications": [{"name": "string", "dosage": "string (optional)", "frequency": "string", "frequencyType": "daily|weekly|once", "reason": "string"}],
+  "medications": [{
+    "name": "string",
+    "dosage": "string (optional)",
+    "frequency": "string",
+    "frequencyType": "daily|weekly|once",
+    "times": ["HH:MM", ...],            // empty array if no explicit times
+    "startDate": "YYYY-MM-DD or null",  // use today's date if duration given without start
+    "endDate": "YYYY-MM-DD or null",    // compute if duration given; otherwise null
+    "selectedDays": [0-6],              // only when explicitly weekly days provided; else empty array
+    "reason": "string"
+  }],
   "appointments": [{"doctor": "string", "specialty": "string", "date": "YYYY-MM-DD", "reason": "string"}],
   "labs": [{"labType": "string", "date": "YYYY-MM-DD", "reason": "string"}],
-  "activities": [{"title": "string", "due": "YYYY-MM-DD or null", "type": "activity"}],
+  "activities": [{
+    "title": "string",
+    "due": "YYYY-MM-DD or null",
+    "type": "activity",
+    "frequencyType": "daily|weekly|once",
+    "selectedDays": [0-6],
+    "startDate": "YYYY-MM-DD or null",
+    "endDate": "YYYY-MM-DD or null"
+  }],
   "followUp": {"date": "YYYY-MM-DD or null", "reason": "string or null"}
 }
 

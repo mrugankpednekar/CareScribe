@@ -327,15 +327,21 @@ export default function AppointmentDetails() {
         // 2) Add medications (avoid duplicates by name + appointment)
         processed.medications?.forEach((med: any) => {
           const frequencyType = deriveFrequencyType(med.frequencyType, med.frequency);
-          const times = deriveTimes(med.times, med.frequency, frequencyType);
+          const times = deriveTimes(med.times, med.frequency);
           const startDate = med.startDate || new Date().toISOString().split("T")[0];
           const endDate = deriveEndDate(med.endDate, med.frequency, startDate);
+          const selectedDays = med.selectedDays
+            ?? parseSelectedDaysFromFrequency(med.frequency)
+            ?? (frequencyType === "weekly" ? [] : []);
 
-          const dup = medications.find(
-            m =>
-              m.name.toLowerCase().trim() === (med.name || "").toLowerCase().trim() &&
-              m.appointmentId === appointment.id,
-          );
+          const dup = medications.find((m) => {
+            const sameName = m.name.toLowerCase().trim() === (med.name || "").toLowerCase().trim();
+            const sameApt = m.appointmentId === appointment.id;
+            const sameFreq = (m.frequencyType || "daily") === frequencyType;
+            const sameDays = JSON.stringify(m.selectedDays || []) === JSON.stringify(selectedDays || []);
+            const sameTimes = JSON.stringify(m.times || []) === JSON.stringify(times || []);
+            return sameName && sameApt && sameFreq && sameDays && sameTimes;
+          });
           if (!dup) {
             addMedication({
               name: med.name,
@@ -350,7 +356,7 @@ export default function AppointmentDetails() {
               appointmentId: appointment.id,
               reason: med.reason,
               frequencyType,
-              selectedDays: med.selectedDays || (frequencyType === "weekly" ? [new Date(startDate).getDay()] : []),
+              selectedDays,
             });
           }
         });
@@ -417,16 +423,18 @@ export default function AppointmentDetails() {
 
         // 6) Add activities as custom events (avoid duplicate titles on same day)
         processed.activities?.forEach((act: any, idx: number) => {
-          const date = act.due || new Date().toISOString().split("T")[0];
-          const activityFrequency = deriveActivityFrequency(act.title);
-          const selectedDays =
-            activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : [];
-          const dup = customEvents.find(
-            e =>
-              e.type === "activity" &&
-              e.title.toLowerCase().trim() === (act.title || "").toLowerCase().trim() &&
-              e.date === date,
-          );
+          const date = act.due || act.startDate || new Date().toISOString().split("T")[0];
+          const activityFrequency = act.frequencyType || deriveActivityFrequency(act.title);
+          const selectedDays = act.selectedDays
+            ?? (activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : []);
+          const endDate = act.endDate;
+          const dup = customEvents.find((e) => {
+            const sameTitle = e.title.toLowerCase().trim() === (act.title || "").toLowerCase().trim();
+            const sameType = e.type === "activity";
+            const sameFreq = (e as any).frequencyType === activityFrequency;
+            const sameDays = JSON.stringify((e as any).selectedDays || []) === JSON.stringify(selectedDays || []);
+            return sameType && sameTitle && sameFreq && sameDays;
+          });
           if (!dup) {
             addEvent({
               id: `ai-activity-${idx}-${Date.now()}`,
@@ -439,6 +447,7 @@ export default function AppointmentDetails() {
               completed: false,
               frequencyType: activityFrequency,
               selectedDays,
+              endDate,
             });
           }
         });
@@ -1258,36 +1267,12 @@ function deriveFrequencyType(
 function deriveTimes(
   existing: string[] | undefined,
   frequencyText: string | undefined,
-  frequencyType: "daily" | "weekly" | "once",
 ): string[] {
   if (existing && existing.length) return existing;
   const text = (frequencyText || "").toLowerCase();
-
-  // 1) Explicit times in text (e.g., "8:00 AM and 9pm")
   const explicit = extractTimes(text);
-  if (explicit.length) return explicit;
-
-  // 2) Keyword-based counts
-  if (text.match(/\b(twice|2x|two)\b/)) return ["08:00", "21:00"];
-  if (text.match(/\b(thrice|three|3x)\b/)) return ["08:00", "14:00", "21:00"];
-  if (text.match(/\b(four|4x)\b/)) return ["06:00", "12:00", "18:00", "23:00"];
-  if (text.includes("every 8 hours")) return ["06:00", "14:00", "22:00"];
-  if (text.includes("every 6 hours")) return ["06:00", "12:00", "18:00", "00:00"];
-  if (text.includes("every 12 hours")) return ["08:00", "20:00"];
-
-  // 3) Morning/evening cues
-  if (text.includes("morning") && text.includes("night")) return ["08:00", "21:00"];
-  if (text.includes("morning") && text.includes("afternoon")) return ["08:00", "14:00"];
-  if (text.includes("morning")) return ["08:00"];
-  if (text.includes("afternoon")) return ["14:00"];
-  if (text.includes("evening") || text.includes("night") || text.includes("bedtime")) return ["21:00"];
-
-  // 4) Frequency type fallbacks
-  if (frequencyType === "daily") return ["08:00"];
-  if (frequencyType === "weekly") return ["08:00"];
-  if (frequencyType === "once") return ["08:00"];
-
-  return ["08:00"];
+  // Use only explicit times; if none found, leave empty to avoid guessing.
+  return explicit;
 }
 
 function deriveEndDate(
@@ -1304,14 +1289,16 @@ function deriveEndDate(
 
   const match = frequencyText
     .toLowerCase()
-    .match(/(for\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[-\s]*(day|days)\b/);
+    .match(/(for\s+)?(\d+|one|two|three|four|five|six|seven|eight|nine|ten)[-\s]*(day|days|week|weeks)\b/);
 
   if (match) {
     const raw = match[2];
     const days = Number.isNaN(Number(raw)) ? wordToNum[raw as keyof typeof wordToNum] : parseInt(raw, 10);
+    const unit = match[3];
     if (!Number.isNaN(days) && days > 0) {
       const start = new Date(startDateIso || new Date().toISOString());
-      start.setDate(start.getDate() + (days - 1));
+      const totalDays = unit?.startsWith("week") ? days * 7 : days;
+      start.setDate(start.getDate() + (totalDays - 1));
       return start.toISOString().split("T")[0];
     }
   }
@@ -1357,4 +1344,22 @@ function extractTimes(text: string): string[] {
     if (!times.includes(timeStr)) times.push(timeStr);
   }
   return times;
+}
+
+function parseSelectedDaysFromFrequency(freq?: string): number[] | undefined {
+  if (!freq) return undefined;
+  const text = freq.toLowerCase();
+  const dayMap: Record<string, number> = {
+    sunday: 0, sun: 0,
+    monday: 1, mon: 1,
+    tuesday: 2, tue: 2, tues: 2,
+    wednesday: 3, wed: 3,
+    thursday: 4, thu: 4, thurs: 4,
+    friday: 5, fri: 5,
+    saturday: 6, sat: 6,
+  };
+  const found = Object.entries(dayMap)
+    .filter(([name]) => text.includes(name))
+    .map(([, idx]) => idx);
+  return found.length ? Array.from(new Set(found)).sort() : undefined;
 }
