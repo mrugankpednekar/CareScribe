@@ -135,7 +135,7 @@ INSTRUCTIONS:
 Return this exact JSON structure (replace values as needed):
 {
   "diagnosis": "string or null",
-  "notes": "Structured summary using plain text with clear separation (e.g. capitalized labels like with 2 new empty lines between each section 'SUMMARY:', 'MEDICATIONS:', etc.) but NO markdown symbols like ## or **. or null",
+  "notes": "Structured summary using plain text with clear separation (e.g. capitalized labels like with 2 new empty lines between each section 'SUMMARY:', 'MEDICATIONS:', 'SUGGESTIONS:', 'LABS:', 'ACTIVITIES:' etc.) but NO markdown symbols like ## or **. or null",
   "instructions": "patient instructions or null",
   "medications": [{
     "name": "string",

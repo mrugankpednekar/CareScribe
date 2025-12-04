@@ -609,7 +609,11 @@ function HistoryAppointmentCard({
   appointment: Appointment;
   appointments: Appointment[];
 }) {
-  const dateObj = appointment.date ? new Date(appointment.date) : null;
+  let dateObj = appointment.date ? new Date(appointment.date) : null;
+  if (appointment.date && appointment.date.length === 10 && appointment.date.includes("-")) {
+    const [y, m, d] = appointment.date.split("-").map(Number);
+    dateObj = new Date(y, m - 1, d);
+  }
   const isLab = (appointment.type ?? "appointment") === "lab";
 
   return (

@@ -64,9 +64,19 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteTranscriptsForAppointment = (appointmentId: string) => {
-    setTranscripts(prev =>
-      prev.filter(transcript => transcript.appointmentId !== appointmentId)
-    );
+    setTranscripts(prev => {
+      // Find transcripts to be deleted
+      const toDelete = prev.filter(t => t.appointmentId === appointmentId);
+
+      // Delete associated documents if they exist
+      toDelete.forEach(t => {
+        if (t.documentId) {
+          window.dispatchEvent(new CustomEvent('delete-document', { detail: { documentId: t.documentId } }));
+        }
+      });
+
+      return prev.filter(transcript => transcript.appointmentId !== appointmentId);
+    });
   };
 
   const deleteTranscript = (transcriptId: string) => {

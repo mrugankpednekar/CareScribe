@@ -99,6 +99,19 @@ export function DocumentsProvider({ children }: { children: ReactNode }) {
     }));
   }, [appointments]);
 
+  // Listen for delete-document events
+  useEffect(() => {
+    const handleDeleteDocument = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.documentId) {
+        deleteDocument(detail.documentId);
+      }
+    };
+
+    window.addEventListener('delete-document', handleDeleteDocument);
+    return () => window.removeEventListener('delete-document', handleDeleteDocument);
+  }, []);
+
   const addDocument = (
     doc: Omit<DocumentMeta, "id" | "uploadedAt">,
   ): DocumentMeta => {

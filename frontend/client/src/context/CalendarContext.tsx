@@ -118,8 +118,14 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
         medications.forEach((med) => {
             if (!med.active) return;
 
-            const startDate = new Date(med.startDate || now);
-            const endDate = med.endDate ? new Date(med.endDate) : null;
+            const parseLocal = (dateStr: string) => {
+                const cleanStr = dateStr.split("T")[0];
+                const [y, m, d] = cleanStr.split("-").map(Number);
+                return new Date(y, m - 1, d);
+            };
+
+            const startDate = med.startDate ? parseLocal(med.startDate) : new Date(now);
+            const endDate = med.endDate ? parseLocal(med.endDate) : null;
 
             for (let offset = 0; offset < daysToGenerate; offset++) {
                 const taskDate = new Date();
@@ -263,7 +269,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
             .filter(apt => apt.status !== 'cancelled') // Filter cancelled/deleted
             .map((apt) => {
                 if (!apt.date) return null;
-                const date = new Date(apt.date);
+                let date = new Date(apt.date);
+                // Fix for YYYY-MM-DD strings being treated as UTC (causing off-by-one error in local time)
+                if (apt.date.length === 10 && apt.date.includes("-")) {
+                    const [y, m, d] = apt.date.split("-").map(Number);
+                    date = new Date(y, m - 1, d);
+                }
                 const isLab = apt.type === "lab";
                 return {
                     id: `${isLab ? "lab" : "apt"}-${apt.id}`,

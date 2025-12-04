@@ -98,10 +98,15 @@ export default function AppointmentDetails() {
     setNotes(appointment.notes || "");
 
     if (appointment.date) {
-      const d = new Date(appointment.date);
-      const localInput = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16);
+      let localInput = "";
+      if (appointment.date.length === 10 && appointment.date.includes("-")) {
+        localInput = `${appointment.date}T00:00`;
+      } else {
+        const d = new Date(appointment.date);
+        localInput = new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+          .toISOString()
+          .slice(0, 16);
+      }
       setDateTime(localInput);
     } else {
       setDateTime("");
@@ -403,6 +408,11 @@ export default function AppointmentDetails() {
 
           // 4) Add any additional appointments returned by the model
           processed.appointments?.forEach((apt: any) => {
+            // Avoid duplicating the follow-up if it was already processed
+            if (processed.followUp?.date && apt.date === processed.followUp.date) {
+              return;
+            }
+
             const exists = appointments.find(
               a => a.date === apt.date && a.doctor === apt.doctor,
             );
@@ -1005,7 +1015,11 @@ export default function AppointmentDetails() {
                     {attachedLabs.map((lab) => {
                       const labDate = lab.date ? new Date(lab.date) : null;
                       const hasDate = !!lab.date;
-                      const dateObj = hasDate ? new Date(lab.date as string) : null;
+                      let dateObj = hasDate ? new Date(lab.date as string) : null;
+                      if (hasDate && (lab.date as string).length === 10 && (lab.date as string).includes("-")) {
+                        const [y, m, d] = (lab.date as string).split("-").map(Number);
+                        dateObj = new Date(y, m - 1, d);
+                      }
 
                       return (
                         <div

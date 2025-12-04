@@ -53,7 +53,10 @@ export function MedicationsProvider({ children }: { children: ReactNode }) {
       frequency: medication.frequency || "Once daily",
       active: medication.active ?? true,
       times: medication.times || [],
-      startDate: medication.startDate || new Date().toISOString().split("T")[0],
+      startDate: medication.startDate || (() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      })(),
       endDate: medication.endDate,
       prescribedBy: medication.prescribedBy,
       prescribedDate: medication.prescribedDate || new Date().toISOString(),
