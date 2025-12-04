@@ -1,5 +1,7 @@
 import { ElevenLabsClient } from "elevenlabs";
 import fs from "fs";
+import os from "os";
+import path from "path";
 
 // Lazy initialization to prevent server crash on startup if key is missing
 let client: ElevenLabsClient | null = null;
@@ -19,13 +21,10 @@ function getClient() {
 }
 
 export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
+    const tempFilePath = path.join(os.tmpdir(), `upload-${Date.now()}.mp3`);
+
     try {
         const elevenLabs = getClient();
-
-        // ElevenLabs expects a file object or stream.
-        // We can create a Blob-like object or write to a temp file.
-        // Writing to a temp file is safer for node environments.
-        const tempFilePath = `/tmp/upload-${Date.now()}.mp3`;
         fs.writeFileSync(tempFilePath, audioBuffer);
 
         const fileStream = fs.createReadStream(tempFilePath);
@@ -35,12 +34,14 @@ export async function transcribeAudio(audioBuffer: Buffer): Promise<string> {
             model_id: "scribe_v1", // Using the Scribe model
         });
 
-        // Clean up temp file
-        fs.unlinkSync(tempFilePath);
-
         return response.text;
     } catch (error) {
         console.error("ElevenLabs Transcription Error:", error);
         throw error; // Re-throw to handle in route
+    } finally {
+        // Clean up temp file
+        if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+        }
     }
 }

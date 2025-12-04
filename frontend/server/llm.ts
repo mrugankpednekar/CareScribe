@@ -101,7 +101,11 @@ INSTRUCTIONS:
    - specialty (optional)
    - date: "YYYY-MM-DD"
    - reason (string)
-
+   - IMPORTANT: Do NOT create an appointment entry for the *current* visit being transcribed. Only future/follow-up appointments.
+   - STRICTLY ONE follow-up per doctor/specialty. If multiple mentions, merge them.
+   - CRITICAL: Do NOT create appointments with generic names like "Doctor", "Provider", or "Specialist". Only use specific names (e.g., "Dr. Smith") or specific clinics.
+   - IF a follow-up is mentioned without a specific name (e.g. "see me in 2 weeks"), use the current doctor's name: ${appointmentDetails?.doctor || "the current provider"}.
+   
    **Labs**
    - labType (required)
    - date: "YYYY-MM-DD"
@@ -115,17 +119,23 @@ INSTRUCTIONS:
    - selectedDays: array of numbers 0-6 for weekly schedules ONLY if days are explicitly listed; otherwise []
    - startDate: "YYYY-MM-DD" or null
    - endDate: "YYYY-MM-DD" or null (compute if duration given; else null)
+   - IMPORTANT: Only include ACTIVE, actionable tasks (e.g., "meditate 10 mins", "walk 30 mins", "take blood pressure").
+   - STRICTLY EXCLUDE:
+     - Passive advice (e.g., "rest", "elevate leg", "stay hydrated", "eat healthy").
+     - Negative, Avoidance, or Preventive advice (e.g., "avoid alcohol", "limit sugar", "don't lift heavy objects").
+     - Vague suggestions (e.g., "drink plenty of water", "eat healthy").
+   - ONLY include "drink water" if a specific volume is mandated (e.g. "drink 2L water daily").
 
-3. Appointments: include follow-ups explicitly mentioned (e.g., "come back in 2 weeks") using computed dates when no absolute date is given.
+3. Appointments: include follow-ups explicitly mentioned. Do NOT duplicate the current appointment. Merge multiple follow-up mentions for the same doctor into one. FILTER OUT generic "Doctor" entries.
 4. Labs: same structure as above; leave optional fields null/empty if absent.
-5. Activities: honor frequency/duration if stated; otherwise leave fields empty/null.
+5. Activities: honor frequency/duration if stated. Do NOT include passive suggestions or "avoid" tasks.
 6. Duplicates: merge repeated mentions into a single entry using the most specific details.
 7. Output ONLY valid JSON that matches the schema below. Do not include any extra text.
 
 Return this exact JSON structure (replace values as needed):
 {
   "diagnosis": "string or null",
-  "notes": "brief summary or null",
+  "notes": "Structured summary using plain text with clear separation (e.g. capitalized labels like with 2 new empty lines between each section 'SUMMARY:', 'MEDICATIONS:', etc.) but NO markdown symbols like ## or **. or null",
   "instructions": "patient instructions or null",
   "medications": [{
     "name": "string",
@@ -152,7 +162,7 @@ Return this exact JSON structure (replace values as needed):
   "followUp": {"date": "YYYY-MM-DD or null", "reason": "string or null"}
 }
 
-Today's date: ${new Date().toISOString().split('T')[0]}`;
+Today's date: ${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })} (Assume this is the current date for relative time calculations like 'next week' or 'tomorrow')`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;

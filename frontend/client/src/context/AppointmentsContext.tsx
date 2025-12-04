@@ -135,7 +135,12 @@ export function AppointmentsProvider({ children }: { children: ReactNode }) {
     return updated;
   };
 
-  const deleteAppointment = (id: string) => {
+  const deleteAppointment = async (id: string) => {
+    try {
+      await fetch(`/api/appointments/${id}`, { method: "DELETE" });
+    } catch (error) {
+      console.error("Failed to delete appointment from backend:", error);
+    }
     setAppointments(prev => prev.filter(apt => apt.id !== id));
   };
 

@@ -33,6 +33,15 @@ export async function registerRoutes(
     res.json(appointment);
   });
 
+  app.delete("/api/appointments/:id", async (req, res) => {
+    try {
+      await storage.deleteAppointment(req.params.id);
+      res.sendStatus(204);
+    } catch (e) {
+      res.status(404).json({ message: "Appointment not found" });
+    }
+  });
+
   // Medications
   app.get("/api/medications", async (req, res) => {
     const userId = "user-1";
@@ -59,6 +68,15 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/medications/:id", async (req, res) => {
+    try {
+      await storage.deleteMedication(req.params.id);
+      res.sendStatus(204);
+    } catch (e) {
+      res.status(404).json({ message: "Medication not found" });
+    }
+  });
+
   // Tasks
   app.get("/api/tasks", async (req, res) => {
     const userId = "user-1";
@@ -80,6 +98,15 @@ export async function registerRoutes(
     try {
       const task = await storage.toggleTask(req.params.id);
       res.json(task);
+    } catch (e) {
+      res.status(404).json({ message: "Task not found" });
+    }
+  });
+
+  app.delete("/api/tasks/:id", async (req, res) => {
+    try {
+      await storage.deleteTask(req.params.id);
+      res.sendStatus(204);
     } catch (e) {
       res.status(404).json({ message: "Task not found" });
     }
@@ -237,6 +264,13 @@ export async function registerRoutes(
 
         // Create Appointments
         for (const apt of processed.appointments) {
+          // Safety check: skip generic doctor names that the AI might still generate
+          const genericNames = ["doctor", "provider", "new provider", "specialist", "unknown"];
+          if (genericNames.some(name => apt.doctor.toLowerCase().includes(name)) && !apt.doctor.toLowerCase().includes("dr.")) {
+            console.log("Skipping generic appointment:", apt.doctor);
+            continue;
+          }
+
           const duplicate = (await storage.getAppointments(userId)).find(
             a => a.date === apt.date && a.doctor === apt.doctor
           );
@@ -245,7 +279,7 @@ export async function registerRoutes(
               userId,
               doctor: apt.doctor,
               specialty: apt.specialty,
-              date: apt.date,
+              date: `${apt.date.split("T")[0]}T12:00:00`,
               reason: apt.reason,
               status: "upcoming",
               diagnosis: null,
@@ -265,7 +299,7 @@ export async function registerRoutes(
               userId,
               doctor: existingApt?.doctor || "Lab",
               specialty: "Lab",
-              date: lab.date,
+              date: `${lab.date.split("T")[0]}T12:00:00`,
               reason: lab.reason,
               status: "upcoming",
               type: "lab",
@@ -300,28 +334,11 @@ export async function registerRoutes(
           }
         }
 
-        // Create Follow-up Appointment (check for duplicates by date and reason)
-        if (processed.followUp && processed.followUp.date) {
-          const allApts = await storage.getAppointments(userId);
-          const duplicateApt = allApts.find(
-            a => a.date === processed.followUp!.date &&
-              a.reason.toLowerCase().includes('follow')
-          );
+      }
 
-          if (!duplicateApt && existingApt) {
-            await storage.createAppointment({
-              userId,
-              doctor: existingApt.doctor || "Dr. Smith",
-              specialty: existingApt.specialty || "General",
-              date: processed.followUp.date,
-              reason: processed.followUp.reason || "Follow-up",
-              status: "upcoming",
-              diagnosis: null,
-              notes: null,
-              instructions: null
-            });
-          }
-        }
+      // Update status of all processed transcriptions to 'completed'
+      for (const t of allTranscriptions) {
+        await storage.updateTranscription(t.id, { status: "completed" });
       }
 
       res.json({ success: true, processed });
@@ -409,9 +426,8 @@ function buildHeuristicReply(latestUserMessage: string, context: Awaited<ReturnT
   if (msg.includes("med") || msg.includes("prescription")) {
     if (!activeMeds.length) return "You have no active medications in your record.";
     const lines = activeMeds.map(m => {
-      const times = m.times && m.times.length ? ` at ${m.times.join(", ")}` : "";
-      const freq = m.frequency || m.frequencyType || "";
-      return `${m.name} ${m.dosage || ""} (${freq}${times})`;
+      const freq = m.frequency || "";
+      return `${m.name} ${m.dosage || ""} (${freq})`;
     });
     return `Active medications:\n- ${lines.join("\n- ")}`;
   }

@@ -16,6 +16,7 @@ import { useDocuments } from "@/context/DocumentsContext";
 import { useTranscripts } from "@/context/TranscriptsContext";
 import { Input } from "@/components/ui/input";
 import type { DocumentMeta } from "@/lib/types";
+import { jsPDF } from "jspdf";
 
 export default function Documents() {
   const [, setLocation] = useLocation();
@@ -25,7 +26,6 @@ export default function Documents() {
     addDocument,
     deleteDocument,
     updateDocument,
-    detachDocumentsFromAppointment,
   } = useDocuments();
   const { transcripts, deleteTranscript } = useTranscripts();
 
@@ -147,6 +147,39 @@ export default function Documents() {
   };
 
   const handleDownload = (doc: DocumentMeta) => {
+    // Check if transcript
+    const transcript = transcripts.find(t => t.documentId === doc.id);
+    if (transcript) {
+      // Download as PDF
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const margin = 10;
+      const maxLineWidth = pageWidth - margin * 2;
+
+      pdf.setFontSize(16);
+      pdf.text(doc.name, margin, 20);
+      pdf.setFontSize(10);
+      pdf.text(`Generated on ${new Date().toLocaleDateString()}`, margin, 30);
+
+      let y = 40;
+      pdf.setFontSize(12);
+
+      const lines = transcript.lines.join("\n");
+      const splitText = pdf.splitTextToSize(lines, maxLineWidth);
+
+      for (const line of splitText) {
+        if (y > 280) {
+          pdf.addPage();
+          y = 20;
+        }
+        pdf.text(line, margin, y);
+        y += 7;
+      }
+
+      pdf.save(`${doc.name}.pdf`);
+      return;
+    }
+
     if (!doc.downloadUrl) return;
     try {
       const link = document.createElement("a");
@@ -230,14 +263,171 @@ export default function Documents() {
 
   const filteredDocuments = sortedDocuments.filter(matchesSearch);
 
+  // Helper to add text to PDF with wrapping and pagination
+  const addWrappedText = (pdf: jsPDF, text: string, x: number, y: number, maxWidth: number, lineHeight: number): number => {
+    const splitText = pdf.splitTextToSize(text, maxWidth);
+    for (const line of splitText) {
+      if (y > 280) {
+        pdf.addPage();
+        y = 20;
+      }
+      pdf.text(line, x, y);
+      y += lineHeight;
+    }
+    return y;
+  };
+
   const handleGenerateFullReport = async () => {
     try {
       setIsExporting(true);
-      // Mock delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // In real app, fetch PDF blob
+
+      const pdf = new jsPDF();
+      const margin = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const maxLineWidth = pageWidth - margin * 2;
+      let y = 20;
+
+      // --- Main Header ---
+      pdf.setFontSize(24);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(44, 105, 117); // Deep Teal
+      pdf.text("CareScribe Medical History", margin, y);
+      y += 10;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, y);
+      y += 20;
+
+      // Filter only transcripts
+      const transcriptDocs = sortedDocuments.filter(doc =>
+        transcripts.some(t => t.documentId === doc.id)
+      ).reverse(); // Chronological order (oldest first)
+
+      if (transcriptDocs.length === 0) {
+        alert("No transcripts found to export.");
+        return;
+      }
+
+      // Helper for Sections (reused logic)
+      const addSection = (title: string, content: string | string[]) => {
+        if (!content || (Array.isArray(content) && content.length === 0)) return;
+
+        if (y > 260) {
+          pdf.addPage();
+          y = 20;
+        }
+
+        // Section Title
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117);
+        pdf.text(title.toUpperCase(), margin, y);
+        y += 5;
+
+        // Content
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(0, 0, 0);
+
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            if (y > 275) {
+              pdf.addPage();
+              y = 20;
+            }
+            pdf.text("•", margin, y);
+            const splitItem = pdf.splitTextToSize(item, maxLineWidth - 5);
+            pdf.text(splitItem, margin + 5, y);
+            y += (splitItem.length * 5) + 2;
+          });
+        } else {
+          const splitText = pdf.splitTextToSize(content, maxLineWidth);
+          for (const line of splitText) {
+            if (y > 275) {
+              pdf.addPage();
+              y = 20;
+            }
+            pdf.text(line, margin, y);
+            y += 5;
+          }
+        }
+        y += 8; // Spacing after section
+      };
+
+      for (const doc of transcriptDocs) {
+        const apt = appointments.find(a => a.id === doc.appointmentId);
+        if (!apt) continue;
+
+        // --- Visit Header (Box) ---
+        if (y > 220) {
+          pdf.addPage();
+          y = 20;
+        }
+
+        pdf.setDrawColor(200, 210, 210);
+        pdf.setFillColor(236, 249, 245); // Minty background
+        pdf.roundedRect(margin, y, maxLineWidth, 25, 3, 3, "F");
+        pdf.setDrawColor(180, 200, 200);
+        pdf.roundedRect(margin, y, maxLineWidth, 25, 3, 3, "S");
+
+        let boxY = y + 8;
+
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${new Date(apt.date || "").toLocaleDateString()} - ${apt.doctor}`, margin + 5, boxY);
+
+        boxY += 7;
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(apt.specialty || "General Visit", margin + 5, boxY);
+
+        y += 35; // Move past box
+
+        // --- Visit Content ---
+        addSection("Reason for Visit", apt.reason || "");
+        addSection("Summary", apt.notes || "");
+
+        const medStrings = apt.medications?.map(m => {
+          let s = `${m.name}`;
+          if (m.dosage) s += ` - ${m.dosage}`;
+          if (m.frequency) s += ` (${m.frequency})`;
+          return s;
+        });
+        addSection("Medications", medStrings || []);
+
+        addSection("Diagnosis", apt.diagnosis || []);
+        addSection("Instructions", apt.instructions || []);
+
+        y += 10; // Extra space between visits
+
+        // Separator line if not last
+        if (doc !== transcriptDocs[transcriptDocs.length - 1]) {
+          pdf.setDrawColor(220, 220, 220);
+          pdf.setLineWidth(0.5);
+          pdf.line(margin, y - 5, pageWidth - margin, y - 5);
+          y += 5;
+        }
+      }
+
+      // --- Footer ---
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
+        pdf.text("CareScribe Full History Export", margin, 290);
+      }
+
+      pdf.save(`Full_Medical_History_${new Date().toISOString().split('T')[0]}.pdf`);
+
     } catch (err) {
       console.error(err);
+      alert("Failed to generate full history. Please try again.");
     } finally {
       setIsExporting(false);
     }
@@ -245,11 +435,159 @@ export default function Documents() {
 
   const handleGenerateSummary = async (doc: DocumentMeta) => {
     setSummaryLoadingId(doc.id);
-    setTimeout(() => {
-      setSummaryLoadingId(null);
-    }, 2000);
-  };
 
+    try {
+      const apt = appointments.find(a => a.id === doc.appointmentId);
+
+      // If unattached, we can't generate a structured summary yet because the data lives on the appointment.
+      // In a real app, we might trigger a re-process here.
+      if (!apt) {
+        alert("This transcript is not attached to an appointment, so no structured summary is available yet. Please attach it to an appointment to view the summary.");
+        setSummaryLoadingId(null);
+        return;
+      }
+
+      const pdf = new jsPDF();
+      const margin = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const maxLineWidth = pageWidth - margin * 2;
+      let y = 20;
+
+      // --- Header ---
+      pdf.setFontSize(22);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(44, 105, 117); // Deep Teal
+      pdf.text("CareScribe Medical Summary", margin, y);
+      y += 12;
+
+      // --- Meta Info ---
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100, 100, 100); // Gray
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}`, margin, y);
+      y += 15;
+
+      // --- Patient/Visit Info Box ---
+      pdf.setDrawColor(200, 210, 210);
+      pdf.setFillColor(236, 249, 245); // Minty background
+      pdf.roundedRect(margin, y, maxLineWidth, 35, 3, 3, "F");
+      pdf.setDrawColor(180, 200, 200);
+      pdf.roundedRect(margin, y, maxLineWidth, 35, 3, 3, "S");
+
+      let boxY = y + 10;
+      const leftColX = margin + 5;
+      const rightColX = pageWidth / 2 + 5;
+
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(11);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Provider:", leftColX, boxY);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(apt.doctor, leftColX + 25, boxY);
+
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Date:", rightColX, boxY);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(new Date(apt.date || "").toLocaleDateString(), rightColX + 15, boxY);
+
+      boxY += 10;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.text("Specialty:", leftColX, boxY);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(apt.specialty || "General Practice", leftColX + 25, boxY);
+
+      boxY += 10;
+      y += 45; // Move past the box
+
+      // --- Helper for Sections ---
+      const addSection = (title: string, content: string | string[]) => {
+        if (!content || (Array.isArray(content) && content.length === 0)) return;
+
+        if (y > 250) {
+          pdf.addPage();
+          y = 20;
+        }
+
+        // Section Title
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(44, 105, 117);
+        pdf.text(title.toUpperCase(), margin, y);
+
+        // Underline
+        pdf.setDrawColor(44, 105, 117);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, y + 2, margin + pdf.getTextWidth(title.toUpperCase()), y + 2);
+
+        y += 10;
+
+        // Content
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(0, 0, 0);
+
+        if (Array.isArray(content)) {
+          content.forEach(item => {
+            if (y > 275) {
+              pdf.addPage();
+              y = 20;
+            }
+            pdf.text("•", margin, y);
+            const splitItem = pdf.splitTextToSize(item, maxLineWidth - 5);
+            pdf.text(splitItem, margin + 5, y);
+            y += (splitItem.length * 6) + 2;
+          });
+        } else {
+          const splitText = pdf.splitTextToSize(content, maxLineWidth);
+          for (const line of splitText) {
+            if (y > 275) {
+              pdf.addPage();
+              y = 20;
+            }
+            pdf.text(line, margin, y);
+            y += 6;
+          }
+        }
+        y += 10; // Spacing after section
+      };
+
+      // --- Sections ---
+      addSection("Reason for Visit", apt.reason || "");
+      addSection("Clinical Summary", apt.notes || "No summary available.");
+      addSection("Key Takeaways & Instructions", apt.instructions || []);
+
+      const medStrings = apt.medications?.map(m => {
+        let s = `${m.name}`;
+        if (m.dosage) s += ` - ${m.dosage}`;
+        if (m.frequency) s += ` (${m.frequency})`;
+        if (m.reason) s += ` for ${m.reason}`;
+        return s;
+      });
+      addSection("Medications", medStrings || []);
+
+      addSection("Diagnosis", apt.diagnosis || []);
+
+      // --- Footer ---
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin, 290, { align: "right" });
+        pdf.text("Generated by CareScribe AI - Not a replacement for professional medical advice.", margin, 290);
+      }
+
+      pdf.save(`Summary_${apt.doctor.replace(/\s+/g, "_")}_${apt.date?.split("T")[0]}.pdf`);
+
+    } catch (err) {
+      console.error(err);
+      alert("Failed to generate summary. Please try again.");
+    } finally {
+      setSummaryLoadingId(null);
+    }
+  };
   const handleDeleteClick = (id: string) => {
     setConfirmingDocId(id);
   };
@@ -278,6 +616,17 @@ export default function Documents() {
 
   const renderPreviewContent = (doc: DocumentMeta | null) => {
     if (!doc) return null;
+
+    // Check if transcript
+    const transcript = transcripts.find(t => t.documentId === doc.id);
+    if (transcript) {
+      return (
+        <div className="whitespace-pre-wrap font-mono text-sm p-4 bg-white rounded-lg border border-border text-foreground">
+          {transcript.lines.join("\n")}
+        </div>
+      );
+    }
+
     if (!doc.downloadUrl) {
       return (
         <p className="text-sm text-muted-foreground">
@@ -401,6 +750,7 @@ export default function Documents() {
                 const sizeLabel = doc.sizeBytes
                   ? `${Math.round(doc.sizeBytes / 1024)} KB`
                   : "";
+                const isTranscript = transcripts.some(t => t.documentId === doc.id);
 
                 return (
                   <div
@@ -473,9 +823,9 @@ export default function Documents() {
                                 onChange={(e) =>
                                   handleChangeAttachment(doc.id, e.target.value)
                                 }
-                                disabled={transcripts.some(t => t.documentId === doc.id)}
+                                disabled={isTranscript}
                                 className="text-[12px] border border-border bg-background rounded-lg px-2 py-1 h-9 max-w-[260px] font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                title={transcripts.some(t => t.documentId === doc.id) ? "Transcripts cannot be moved" : "Change attachment"}
+                                title={isTranscript ? "Transcripts cannot be moved" : "Change attachment"}
                               >
                                 <option value="none">None</option>
                                 {appointments.map((apt) => {
@@ -513,25 +863,17 @@ export default function Documents() {
                         <Eye className="w-5 h-5 text-muted-foreground" />
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleGenerateSummary(doc)}
-                        disabled={isSummaryLoading(doc.id)}
-                        className="p-2 rounded-full hover:bg-muted disabled:opacity-40"
-                        aria-label="Generate AI summary"
-                      >
-                        <Sparkles className="w-5 h-5 text-foreground" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(doc)}
-                        className="p-2 rounded-full border border-border hover:bg-muted disabled:opacity-40"
-                        disabled={!doc.downloadUrl}
-                        aria-label="Download document"
-                      >
-                        <Download className="w-5 h-5 text-foreground" />
-                      </button>
+                      {isTranscript && (
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateSummary(doc)}
+                          disabled={isSummaryLoading(doc.id)}
+                          className="p-2 rounded-full hover:bg-muted disabled:opacity-40"
+                          aria-label="Generate AI summary"
+                        >
+                          <Sparkles className="w-5 h-5 text-foreground" />
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -705,14 +1047,24 @@ export default function Documents() {
                     {previewDoc.name}
                   </h3>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClosePreview}
-                  className="p-1 rounded-full hover:bg-muted"
-                  aria-label="Close preview"
-                >
-                  <X className="w-4 h-4 text-muted-foreground" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(previewDoc)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90"
+                  >
+                    <Download className="w-3 h-3" />
+                    Download as PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClosePreview}
+                    className="p-1 rounded-full hover:bg-muted"
+                    aria-label="Close preview"
+                  >
+                    <X className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-auto p-4 bg-muted/20">
                 {renderPreviewContent(previewDoc)}

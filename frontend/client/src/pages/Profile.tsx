@@ -140,7 +140,7 @@ export default function Profile() {
     setEditingMed(med);
     setMedForm({
       name: med.name,
-      dosage: med.dosage,
+      dosage: med.dosage || "",
       frequency: med.frequency,
       times: med.times || [],
       startDate: med.startDate || new Date().toISOString().split("T")[0],

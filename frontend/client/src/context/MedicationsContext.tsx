@@ -82,7 +82,12 @@ export function MedicationsProvider({ children }: { children: ReactNode }) {
     return updated;
   };
 
-  const deleteMedication = (id: string) => {
+  const deleteMedication = async (id: string) => {
+    try {
+      await fetch(`/api/medications/${id}`, { method: "DELETE" });
+    } catch (error) {
+      console.error("Failed to delete medication from backend:", error);
+    }
     setMedications((prev) => prev.filter((med) => med.id !== id));
   };
 

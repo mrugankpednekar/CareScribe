@@ -169,7 +169,7 @@ export default function Dashboard() {
       if (med) {
         setMedForm({
           name: med.name,
-          dosage: med.dosage,
+          dosage: med.dosage || "",
           frequency: med.frequency,
           times: med.times || [],
           startDate: med.startDate || "",
@@ -907,7 +907,7 @@ export default function Dashboard() {
                           if (med) {
                             setMedForm({
                               name: med.name,
-                              dosage: med.dosage,
+                              dosage: med.dosage || "",
                               frequency: med.frequency,
                               times: med.times || [],
                               startDate: med.startDate || "",

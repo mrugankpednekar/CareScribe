@@ -61,6 +61,22 @@ export default function AppointmentDetails() {
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [previewTranscript, setPreviewTranscript] = useState<Transcript | null>(null);
   const [previewDocument, setPreviewDocument] = useState<DocumentMeta | null>(null);
+  const [processedTranscriptIds, setProcessedTranscriptIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && appointmentId) {
+      try {
+        const saved = window.localStorage.getItem(`cs_processed_ids_${appointmentId}`);
+        setProcessedTranscriptIds(saved ? JSON.parse(saved) : []);
+      } catch {
+        setProcessedTranscriptIds([]);
+      }
+    }
+  }, [appointmentId]);
+
+  // ... (keep other refs/effects)
+
+
 
   const debounceRef = useRef<number | null>(null);
   const lastSavedRef = useRef<{
@@ -278,187 +294,225 @@ export default function AppointmentDetails() {
   };
 
   const handleProcessTranscript = async () => {
-    if (!appointmentTranscripts.length || processingTranscript) return;
+    const newTranscripts = appointmentTranscripts.filter(t => !processedTranscriptIds.includes(t.id));
+    if (!newTranscripts.length || processingTranscript) return;
 
     setProcessingTranscript(true);
     try {
-      // Try to get backend ID from transcript, otherwise look up by appointment
-      const firstTranscript = appointmentTranscripts[0] as any;
-      let transcriptId = firstTranscript.backendId;
+      let currentNotes = appointment.notes || "";
+      const successfullyProcessedIds: string[] = [];
 
-      // If no backend ID stored, try to find transcription by appointmentId
-      if (!transcriptId) {
-        const response = await fetch(`/api/transcriptions?appointmentId=${appointment.id}`);
-        if (response.ok) {
-          const transcriptions = await response.json();
-          if (transcriptions.length > 0) {
-            transcriptId = transcriptions[0].id;
-          }
-        }
-      }
+      for (const transcript of newTranscripts) {
+        // Try to get backend ID from transcript, otherwise look up by appointment
+        let transcriptId = transcript.backendId;
 
-      if (!transcriptId) {
-        alert("Cannot find backend transcription. Please re-record this appointment.");
-        setProcessingTranscript(false);
-        return;
-      }
-
-      const response = await fetch(`/api/transcriptions/${transcriptId}/process`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to process transcript");
-      }
-
-      const result = await response.json();
-      console.log("AI Processing Result:", result);
-
-      // Update local state to mirror what backend created so the UI reflects changes immediately.
-      const processed = result?.processed;
-      if (processed) {
-        // 1) Update the current appointment details
-        const updates: Partial<Appointment> = {};
-        if (processed.diagnosis) updates.diagnosis = [processed.diagnosis];
-        if (processed.instructions) updates.instructions = [processed.instructions];
-        if (processed.notes) updates.notes = processed.notes;
-        updateAppointment(appointment.id, updates);
-
-        // 2) Add medications (avoid duplicates by name + appointment)
-        processed.medications?.forEach((med: any) => {
-          const frequencyType = deriveFrequencyType(med.frequencyType, med.frequency);
-          const times = deriveTimes(med.times, med.frequency);
-          const startDate = med.startDate || new Date().toISOString().split("T")[0];
-          const endDate = deriveEndDate(med.endDate, med.frequency, startDate);
-          const selectedDays = med.selectedDays
-            ?? parseSelectedDaysFromFrequency(med.frequency)
-            ?? (frequencyType === "weekly" ? [] : []);
-
-          const dup = medications.find((m) => {
-            const sameName = m.name.toLowerCase().trim() === (med.name || "").toLowerCase().trim();
-            const sameApt = m.appointmentId === appointment.id;
-            const sameFreq = (m.frequencyType || "daily") === frequencyType;
-            const sameDays = JSON.stringify(m.selectedDays || []) === JSON.stringify(selectedDays || []);
-            const sameTimes = JSON.stringify(m.times || []) === JSON.stringify(times || []);
-            return sameName && sameApt && sameFreq && sameDays && sameTimes;
-          });
-          if (!dup) {
-            addMedication({
-              name: med.name,
-              dosage: med.dosage || "",
-              frequency: med.frequency || "Once daily",
-              active: true,
-              times,
-              startDate,
-              endDate,
-              prescribedBy: med.prescribedBy || appointment.doctor,
-              prescribedDate: med.prescribedDate || appointment.date,
-              appointmentId: appointment.id,
-              reason: med.reason,
-              frequencyType,
-              selectedDays,
-            });
-          }
-        });
-
-        // 3) Add follow-up appointment if returned
-        if (processed.followUp?.date) {
-          const exists = appointments.find(
-            a =>
-              a.date === processed.followUp.date &&
-              (a.reason || "").toLowerCase().includes("follow"),
-          );
-          if (!exists) {
-            addEvent({
-              type: "appointment",
-              date: processed.followUp.date,
-              doctor: appointment.doctor,
-              specialty: appointment.specialty || "General",
-              reason: processed.followUp.reason || "Follow-up",
-              status: "upcoming",
-              diagnosis: [],
-              instructions: [],
-            });
+        // If no backend ID stored, try to find transcription by appointmentId
+        // Note: This fallback is imperfect for multiple transcripts but kept for compatibility
+        if (!transcriptId) {
+          const response = await fetch(`/api/transcriptions?appointmentId=${appointment.id}`);
+          if (response.ok) {
+            const transcriptions = await response.json();
+            if (transcriptions.length > 0) {
+              // Try to match by some heuristic if possible, or just take the first one?
+              // Ideally backendId should be present.
+              transcriptId = transcriptions[0].id;
+            }
           }
         }
 
-        // 4) Add any additional appointments returned by the model
-        processed.appointments?.forEach((apt: any) => {
-          const exists = appointments.find(
-            a => a.date === apt.date && a.doctor === apt.doctor,
-          );
-          if (!exists) {
-            addEvent({
-              type: "appointment",
-              date: apt.date,
-              doctor: apt.doctor,
-              specialty: apt.specialty,
-              reason: apt.reason,
-              status: "upcoming",
-              diagnosis: [],
-              instructions: [],
-            });
-          }
+        if (!transcriptId) {
+          console.warn("Skipping transcript without backend ID:", transcript.id);
+          continue;
+        }
+
+        const response = await fetch(`/api/transcriptions/${transcriptId}/process`, {
+          method: "POST",
         });
 
-        // 5) Add labs as lab-type appointments
-        processed.labs?.forEach((lab: any) => {
-          const exists = appointments.find(
-            a => a.type === "lab" && a.date === lab.date && a.labType === lab.labType,
-          );
-          if (!exists) {
-            addEvent({
-              type: "lab",
-              labType: lab.labType,
-              date: lab.date,
-              doctor: appointment.doctor || "Lab",
-              reason: lab.reason,
-              status: "upcoming",
-              diagnosis: [],
-              instructions: [],
-              attachedProviderId: appointment.id,
-            });
-          }
-        });
+        if (!response.ok) {
+          throw new Error(`Failed to process transcript ${transcriptId}`);
+        }
 
-        // 6) Add activities as custom events (avoid duplicate titles on same day)
-        processed.activities?.forEach((act: any, idx: number) => {
-          const date = act.due || act.startDate || new Date().toISOString().split("T")[0];
-          const activityFrequency = act.frequencyType || deriveActivityFrequency(act.title);
-          const selectedDays = act.selectedDays
-            ?? (activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : []);
-          const endDate = act.endDate;
-          const dup = customEvents.find((e) => {
-            const sameTitle = e.title.toLowerCase().trim() === (act.title || "").toLowerCase().trim();
-            const sameType = e.type === "activity";
-            const sameFreq = (e as any).frequencyType === activityFrequency;
-            const sameDays = JSON.stringify((e as any).selectedDays || []) === JSON.stringify(selectedDays || []);
-            return sameType && sameTitle && sameFreq && sameDays;
+        const result = await response.json();
+        console.log("AI Processing Result:", result);
+
+        const processed = result?.processed;
+        if (processed) {
+          // 1) Accumulate notes
+          if (processed.notes) {
+            currentNotes = (currentNotes ? currentNotes + "\n\n" : "") + processed.notes;
+          }
+
+          // 2) Add medications (avoid duplicates by name + appointment)
+          processed.medications?.forEach((med: any) => {
+            const frequencyType = deriveFrequencyType(med.frequencyType, med.frequency || "");
+            const times = deriveTimes(med.times, med.frequency || "");
+            const startDate = med.startDate || new Date().toISOString().split("T")[0];
+            const endDate = deriveEndDate(med.endDate, med.frequency, startDate);
+            const selectedDays = med.selectedDays
+              ?? parseSelectedDaysFromFrequency(med.frequency)
+              ?? (frequencyType === "weekly" ? [] : []);
+
+            const dup = medications.find((m) => {
+              const sameName = m.name.toLowerCase().trim() === (med.name || "").toLowerCase().trim();
+              const sameApt = m.appointmentId === appointment.id;
+              const sameFreq = (m.frequencyType || "daily") === frequencyType;
+              const sameDays = JSON.stringify(m.selectedDays || []) === JSON.stringify(selectedDays || []);
+              const sameTimes = JSON.stringify(m.times || []) === JSON.stringify(times || []);
+              return sameName && sameApt && sameFreq && sameDays && sameTimes;
+            });
+            if (!dup) {
+              addMedication({
+                name: med.name,
+                dosage: med.dosage || "",
+                frequency: med.frequency || "Once daily",
+                active: true,
+                times,
+                startDate,
+                endDate,
+                prescribedBy: med.prescribedBy || appointment.doctor,
+                prescribedDate: med.prescribedDate || appointment.date,
+                appointmentId: appointment.id,
+                reason: med.reason,
+                frequencyType,
+                selectedDays,
+              });
+            }
           });
-          if (!dup) {
-            addEvent({
-              id: `ai-activity-${idx}-${Date.now()}`,
-              title: act.title,
-              description: act.reason,
-              date,
-              time: undefined,
-              allDay: true,
-              type: "activity",
-              completed: false,
-              frequencyType: activityFrequency,
-              selectedDays,
-              endDate,
-            });
+
+          // 3) Add follow-up appointment if returned
+          if (processed.followUp?.date) {
+            const exists = appointments.find(
+              a =>
+                a.date === processed.followUp.date &&
+                (a.reason || "").toLowerCase().includes("follow"),
+            );
+            if (!exists) {
+              addEvent({
+                type: "appointment",
+                date: processed.followUp.date,
+                doctor: appointment.doctor,
+                specialty: appointment.specialty || "General",
+                reason: processed.followUp.reason || "Follow-up",
+                status: "upcoming",
+                diagnosis: [],
+                instructions: [],
+              });
+            }
           }
-        });
+
+          // 4) Add any additional appointments returned by the model
+          processed.appointments?.forEach((apt: any) => {
+            const exists = appointments.find(
+              a => a.date === apt.date && a.doctor === apt.doctor,
+            );
+            if (!exists) {
+              addEvent({
+                type: "appointment",
+                date: apt.date,
+                doctor: apt.doctor,
+                specialty: apt.specialty,
+                reason: apt.reason,
+                status: "upcoming",
+                diagnosis: [],
+                instructions: [],
+              });
+            }
+          });
+
+          // 5) Add labs as lab-type appointments
+          processed.labs?.forEach((lab: any) => {
+            const exists = appointments.find(
+              a => a.type === "lab" && a.date === lab.date && a.labType === lab.labType,
+            );
+            if (!exists) {
+              addEvent({
+                type: "lab",
+                labType: lab.labType,
+                date: lab.date,
+                doctor: appointment.doctor || "Lab",
+                reason: lab.reason,
+                status: "upcoming",
+                diagnosis: [],
+                instructions: [],
+                attachedProviderId: appointment.id,
+              });
+            }
+          });
+
+          // 6) Add activities as custom events (avoid duplicate titles on same day)
+          processed.activities?.forEach((act: any, idx: number) => {
+            const date = act.due || act.startDate || new Date().toISOString().split("T")[0];
+            const activityFrequency = act.frequencyType || deriveActivityFrequency(act.title);
+            const selectedDays = act.selectedDays
+              ?? (activityFrequency === "weekly" ? [new Date(date).getDay()] : activityFrequency === "daily" ? [0, 1, 2, 3, 4, 5, 6] : []);
+            const endDate = act.endDate;
+            const dup = customEvents.find((e) => {
+              const sameTitle = e.title.toLowerCase().trim() === (act.title || "").toLowerCase().trim();
+              const sameType = e.type === "activity";
+              const sameFreq = (e as any).frequencyType === activityFrequency;
+              const sameDays = JSON.stringify((e as any).selectedDays || []) === JSON.stringify(selectedDays || []);
+              return sameType && sameTitle && sameFreq && sameDays;
+            });
+            if (!dup) {
+              addEvent({
+                id: `ai-activity-${idx}-${Date.now()}`,
+                title: act.title,
+                description: act.reason,
+                date,
+                time: undefined,
+                allDay: true,
+                type: "activity",
+                completed: false,
+                frequencyType: activityFrequency,
+                selectedDays,
+                endDate,
+              });
+            }
+          });
+
+          // Update diagnosis and instructions (merge unique)
+          const updates: Partial<Appointment> = {};
+          if (processed.diagnosis) {
+            const existing = appointment.diagnosis || [];
+            if (!existing.includes(processed.diagnosis)) {
+              updates.diagnosis = [...existing, processed.diagnosis];
+            }
+          }
+          if (processed.instructions) {
+            const existing = appointment.instructions || [];
+            if (!existing.includes(processed.instructions)) {
+              updates.instructions = [...existing, processed.instructions];
+            }
+          }
+
+          if (Object.keys(updates).length > 0) {
+            updateAppointment(appointment.id, updates);
+          }
+
+          successfullyProcessedIds.push(transcript.id);
+        }
       }
+
+      // Final update for notes and processed IDs
+      if (successfullyProcessedIds.length > 0) {
+        updateAppointment(appointment.id, { notes: currentNotes });
+        setNotes(currentNotes);
+
+        const nextProcessedIds = [...processedTranscriptIds, ...successfullyProcessedIds];
+        setProcessedTranscriptIds(nextProcessedIds);
+        window.localStorage.setItem(`cs_processed_ids_${appointment.id}`, JSON.stringify(nextProcessedIds));
+      }
+
     } catch (error) {
       console.error("Manual AI processing error:", error);
-      alert("Failed to process transcript. Please try again.");
+      alert("Failed to process some transcripts. Please try again.");
     } finally {
       setProcessingTranscript(false);
     }
   };
+
+
 
   const handleDownloadTranscriptAsPdf = (tr: Transcript) => {
     const doc = new jsPDF();
@@ -765,26 +819,6 @@ export default function AppointmentDetails() {
           </div>
         </section>
 
-        {/* AI summary */}
-        <section className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Mic className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">
-              AI summary helper
-            </h2>
-          </div>
-          {aiSummaryPrompt ? (
-            <div className="bg-muted/60 border border-border rounded-xl p-3 text-xs whitespace-pre-wrap max-h-48 overflow-y-auto">
-              {aiSummaryPrompt}
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Once you have at least one transcript, we’ll show a helpful
-              summary prompt here.
-            </p>
-          )}
-        </section>
-
         {/* AI Process Button */}
         {appointmentTranscripts.length > 0 && (
           <section className="rounded-2xl border border-border bg-card p-5">
@@ -794,14 +828,15 @@ export default function AppointmentDetails() {
                   Process all recordings with AI
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                  Analyze all {appointmentTranscripts.length} recording(s) together to extract medications, tasks, and follow-ups.
+                  Analyze all {appointmentTranscripts.length} recording(s)  to extract medications, tasks, and follow-ups.
                 </p>
               </div>
               <button
                 onClick={handleProcessTranscript}
-                disabled={processingTranscript}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed">
-                {processingTranscript ? "Processing..." : "Analyze & Create Tasks"}
+                disabled={processingTranscript || appointmentTranscripts.every(t => processedTranscriptIds.includes(t.id))}
+                className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {processingTranscript ? "Processing..." : appointmentTranscripts.every(t => processedTranscriptIds.includes(t.id)) ? "Processed" : "Analyze & Create Tasks"}
               </button>
             </div>
           </section>
@@ -949,240 +984,248 @@ export default function AppointmentDetails() {
 
         {/* Attached labs (only for visits) */}
         {/* Attached labs (only for visits) */}
-        {appointment.type !== "lab" && (
-          <section className="rounded-2xl border border-border bg-card p-5 flex flex-col">
-            <div className="flex items-center gap-2 mb-3">
-              <FlaskConical className="w-4 h-4 text-blue-500" />
-              <h2 className="text-sm font-semibold text-foreground">
-                Lab work ordered during this visit
-              </h2>
-            </div>
-            <div className="max-h-48 overflow-y-auto pr-1">
-              {attachedLabs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No lab work attached to this appointment. Add lab work from the{" "}
-                  <span className="font-medium text-foreground">History</span> page
-                  and link it to this provider.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {attachedLabs.map((lab) => {
-                    const labDate = lab.date ? new Date(lab.date) : null;
-                    const hasDate = !!lab.date;
-                    const dateObj = hasDate ? new Date(lab.date as string) : null;
+        {
+          appointment.type !== "lab" && (
+            <section className="rounded-2xl border border-border bg-card p-5 flex flex-col">
+              <div className="flex items-center gap-2 mb-3">
+                <FlaskConical className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm font-semibold text-foreground">
+                  Lab work ordered during this visit
+                </h2>
+              </div>
+              <div className="max-h-48 overflow-y-auto pr-1">
+                {attachedLabs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No lab work attached to this appointment. Add lab work from the{" "}
+                    <span className="font-medium text-foreground">History</span> page
+                    and link it to this provider.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {attachedLabs.map((lab) => {
+                      const labDate = lab.date ? new Date(lab.date) : null;
+                      const hasDate = !!lab.date;
+                      const dateObj = hasDate ? new Date(lab.date as string) : null;
 
-                    return (
-                      <div
-                        key={lab.id}
-                        className="flex items-center justify-between border border-border rounded-xl px-3 py-2 bg-background hover:bg-muted/60 cursor-pointer transition-colors"
-                        onClick={() => window.location.href = `/appointment/${lab.id}`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                            <FlaskConical className="w-4 h-4 text-blue-500" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate">
-                              {lab.labType || "Lab Work"}
-                            </p>
-                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                              {dateObj ? (
-                                <>
-                                  <span>
-                                    {dateObj.toLocaleDateString("en-US", {
-                                      month: "short",
-                                      day: "numeric",
-                                      year: "numeric",
-                                    })}
-                                  </span>
-                                  <span>•</span>
-                                  <span>
-                                    {dateObj.toLocaleTimeString("en-US", {
-                                      hour: "numeric",
-                                      minute: "2-digit",
-                                    })}
-                                  </span>
-                                </>
-                              ) : (
-                                <span>No date</span>
-                              )}
-                              {lab.reason && (
-                                <>
-                                  <span>•</span>
-                                  <span className="truncate">{lab.reason}</span>
-                                </>
-                              )}
+                      return (
+                        <div
+                          key={lab.id}
+                          className="flex items-center justify-between border border-border rounded-xl px-3 py-2 bg-background hover:bg-muted/60 cursor-pointer transition-colors"
+                          onClick={() => window.location.href = `/appointment/${lab.id}`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                              <FlaskConical className="w-4 h-4 text-blue-500" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">
+                                {lab.labType || "Lab Work"}
+                              </p>
+                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                {dateObj ? (
+                                  <>
+                                    <span>
+                                      {dateObj.toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                        year: "numeric",
+                                      })}
+                                    </span>
+                                    <span>•</span>
+                                    <span>
+                                      {dateObj.toLocaleTimeString("en-US", {
+                                        hour: "numeric",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span>No date</span>
+                                )}
+                                {lab.reason && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="truncate">{lab.reason}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span
+                              className={`text-[11px] font-semibold px-2 py-0.5 rounded capitalize ${lab.status === "completed"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-blue-50 text-blue-700"
+                                }`}
+                            >
+                              {lab.status}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span
-                            className={`text-[11px] font-semibold px-2 py-0.5 rounded capitalize ${lab.status === "completed"
-                              ? "bg-gray-100 text-gray-700"
-                              : "bg-blue-50 text-blue-700"
-                              }`}
-                          >
-                            {lab.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </section>
+          )
+        }
 
         {/* Transcript preview modal */}
-        {previewTranscript && (
-          <div className="fixed inset-0 md:left-64 bg-black/40 z-40 flex items-center justify-center px-4">
-            <div className="bg-card w-full max-w-2xl rounded-2xl border border-border shadow-xl max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-border px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Mic className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {(previewTranscript as any).title ?? "Transcript preview"}
-                  </h3>
+        {
+          previewTranscript && (
+            <div className="fixed inset-0 md:left-64 bg-black/40 z-40 flex items-center justify-center px-4">
+              <div className="bg-card w-full max-w-2xl rounded-2xl border border-border shadow-xl max-h-[90vh] flex flex-col">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Mic className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {(previewTranscript as any).title ?? "Transcript preview"}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadTranscriptAsPdf(previewTranscript)}
+                      className="text-xs font-semibold text-primary hover:underline"
+                    >
+                      Download as PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClosePreview}
+                      className="p-1 rounded-full hover:bg-muted"
+                      aria-label="Close"
+                    >
+                      <X className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDownloadTranscriptAsPdf(previewTranscript)}
-                    className="text-xs font-semibold text-primary hover:underline"
-                  >
-                    Download as PDF
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleClosePreview}
-                    className="p-1 rounded-full hover:bg-muted"
-                    aria-label="Close"
-                  >
-                    <X className="w-4 h-4 text-muted-foreground" />
-                  </button>
+                <div className="flex-1 overflow-y-auto px-4 py-3">
+                  <div className="space-y-2 text-sm">
+                    {((previewTranscript as any).lines ?? []).map(
+                      (line: string, idx: number) => (
+                        <p key={idx} className="text-foreground leading-relaxed">
+                          {line}
+                        </p>
+                      ),
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto px-4 py-3">
-                <div className="space-y-2 text-sm">
-                  {((previewTranscript as any).lines ?? []).map(
-                    (line: string, idx: number) => (
-                      <p key={idx} className="text-foreground leading-relaxed">
-                        {line}
-                      </p>
-                    ),
+            </div>
+          )
+        }
+
+        {/* Document preview modal */}
+        {
+          previewDocument && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-card w-full max-w-4xl h-[80vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b border-border">
+                  <div>
+                    <h3 className="font-semibold text-lg">{previewDocument.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {previewDocument.mimeType} • {Math.round(previewDocument.sizeBytes / 1024)} KB
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleDownloadDocument(previewDocument)}
+                      className="p-2 hover:bg-muted rounded-full"
+                      title="Download"
+                    >
+                      <FileText className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={handleClosePreview}
+                      className="p-2 hover:bg-muted rounded-full"
+                      title="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-4">
+                  {previewDocument.mimeType.startsWith("image/") ? (
+                    <img
+                      src={previewDocument.downloadUrl}
+                      alt={previewDocument.name}
+                      className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
+                    />
+                  ) : previewDocument.mimeType === "application/pdf" ? (
+                    <iframe
+                      src={previewDocument.downloadUrl}
+                      className="w-full h-full rounded-lg shadow-sm bg-white"
+                      title={previewDocument.name}
+                    />
+                  ) : (
+                    <div className="text-center space-y-4">
+                      <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
+                        <FileText className="w-10 h-10 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">Preview not available</p>
+                        <p className="text-sm text-muted-foreground">
+                          This file type cannot be previewed directly.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleDownloadDocument(previewDocument)}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                      >
+                        Download File
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Document preview modal */}
-        {previewDocument && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-            <div className="bg-card w-full max-w-4xl h-[80vh] rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between p-4 border-b border-border">
-                <div>
-                  <h3 className="font-semibold text-lg">{previewDocument.name}</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {previewDocument.mimeType} • {Math.round(previewDocument.sizeBytes / 1024)} KB
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleDownloadDocument(previewDocument)}
-                    className="p-2 hover:bg-muted rounded-full"
-                    title="Download"
-                  >
-                    <FileText className="w-5 h-5" />
-                  </button>
-                  <button
-                    onClick={handleClosePreview}
-                    className="p-2 hover:bg-muted rounded-full"
-                    title="Close"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1 bg-muted/20 overflow-auto flex items-center justify-center p-4">
-                {previewDocument.mimeType.startsWith("image/") ? (
-                  <img
-                    src={previewDocument.downloadUrl}
-                    alt={previewDocument.name}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-sm"
-                  />
-                ) : previewDocument.mimeType === "application/pdf" ? (
-                  <iframe
-                    src={previewDocument.downloadUrl}
-                    className="w-full h-full rounded-lg shadow-sm bg-white"
-                    title={previewDocument.name}
-                  />
-                ) : (
-                  <div className="text-center space-y-4">
-                    <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto">
-                      <FileText className="w-10 h-10 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Preview not available</p>
-                      <p className="text-sm text-muted-foreground">
-                        This file type cannot be previewed directly.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleDownloadDocument(previewDocument)}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
-                    >
-                      Download File
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+          )
+        }
 
         {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <>
-            <div className="fixed inset-0 md:left-64 bg-black/40 z-30" />
-            <div className="fixed inset-0 md:left-64 z-40 flex items-center justify-center px-4">
-              <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-xl p-5 space-y-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {isLab ? "Delete this lab?" : "Delete this appointment?"}
-                  </h3>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This will remove{" "}
-                  {isLab ? "this lab" : "this appointment"} and detach any linked
-                  transcripts and documents. This action can&apos;t be undone.
-                </p>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirm(false)}
-                    className="px-3 py-1.5 rounded-md border border-border text-xs hover:bg-muted"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteAppointment}
-                    className="px-3 py-1.5 rounded-md bg-red-600 text-xs font-semibold text-white hover:bg-red-700"
-                  >
-                    {isLab ? "Delete lab" : "Delete appointment"}
-                  </button>
+        {
+          showDeleteConfirm && (
+            <>
+              <div className="fixed inset-0 md:left-64 bg-black/40 z-30" />
+              <div className="fixed inset-0 md:left-64 z-40 flex items-center justify-center px-4">
+                <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <h3 className="text-sm font-semibold text-foreground">
+                      {isLab ? "Delete this lab?" : "Delete this appointment?"}
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This will remove{" "}
+                    {isLab ? "this lab" : "this appointment"} and detach any linked
+                    transcripts and documents. This action can&apos;t be undone.
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="px-3 py-1.5 rounded-md border border-border text-xs hover:bg-muted"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteAppointment}
+                      className="px-3 py-1.5 rounded-md bg-red-600 text-xs font-semibold text-white hover:bg-red-700"
+                    >
+                      {isLab ? "Delete lab" : "Delete appointment"}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-    </Layout>
+            </>
+          )
+        }
+      </div >
+    </Layout >
   );
 }
 

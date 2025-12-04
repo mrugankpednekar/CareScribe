@@ -10,7 +10,7 @@ import type { Transcript } from "@/lib/types";
 
 interface TranscriptsContextValue {
   transcripts: Transcript[];
-  addTranscript: (input: { appointmentId: string; lines: string[]; documentId?: string }) => Transcript;
+  addTranscript: (input: { appointmentId: string; lines: string[]; documentId?: string; backendId?: string }) => Transcript;
   deleteTranscriptsForAppointment: (appointmentId: string) => void;
   deleteTranscript: (transcriptId: string) => void;
 }
@@ -44,7 +44,7 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
     }
   }, [transcripts]);
 
-  const addTranscript = (input: { appointmentId: string; lines: string[]; documentId?: string }): Transcript => {
+  const addTranscript = (input: { appointmentId: string; lines: string[]; documentId?: string; backendId?: string }): Transcript => {
     const id = `tr-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString()}`;
     const createdAt = new Date().toISOString();
     const title = `Visit transcript - ${new Date().toLocaleString()}`;
@@ -56,6 +56,7 @@ export function TranscriptsProvider({ children }: { children: ReactNode }) {
       title,
       lines: input.lines,
       documentId: input.documentId,
+      backendId: input.backendId,
     };
 
     setTranscripts((prev) => [...prev, transcript]);

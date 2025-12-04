@@ -29,16 +29,19 @@ export interface IStorage {
   getAppointments(userId: string): Promise<Appointment[]>;
   createAppointment(appointment: InsertAppointment): Promise<Appointment>;
   updateAppointment(id: string, appointment: Partial<InsertAppointment>): Promise<Appointment>;
+  deleteAppointment(id: string): Promise<void>;
 
   // Medications
   getMedications(userId: string): Promise<Medication[]>;
   createMedication(medication: InsertMedication): Promise<Medication>;
   toggleMedication(id: string): Promise<Medication>;
+  deleteMedication(id: string): Promise<void>;
 
   // Tasks
   getTasks(userId: string): Promise<Task[]>;
   createTask(task: InsertTask): Promise<Task>;
   toggleTask(id: string): Promise<Task>;
+  deleteTask(id: string): Promise<void>;
 
   // Messages
   getMessages(userId: string): Promise<Message[]>;
@@ -99,7 +102,10 @@ export class MemStorage implements IStorage {
       id,
       diagnosis: insertAppointment.diagnosis || null,
       notes: insertAppointment.notes || null,
-      instructions: insertAppointment.instructions || null
+      instructions: insertAppointment.instructions || null,
+      type: insertAppointment.type || null,
+      labType: insertAppointment.labType || null,
+      attachedProviderId: insertAppointment.attachedProviderId || null
     };
     this.appointments.set(id, appointment);
     return appointment;
@@ -111,6 +117,10 @@ export class MemStorage implements IStorage {
     const updated = { ...existing, ...update };
     this.appointments.set(id, updated);
     return updated;
+  }
+
+  async deleteAppointment(id: string): Promise<void> {
+    this.appointments.delete(id);
   }
 
   // Medications
@@ -126,7 +136,8 @@ export class MemStorage implements IStorage {
       ...insertMedication,
       id,
       active: insertMedication.active ?? true,
-      appointmentId: insertMedication.appointmentId || null
+      appointmentId: insertMedication.appointmentId || null,
+      dosage: insertMedication.dosage || null
     };
     this.medications.set(id, medication);
     return medication;
@@ -138,6 +149,10 @@ export class MemStorage implements IStorage {
     const updated = { ...med, active: !med.active };
     this.medications.set(id, updated);
     return updated;
+  }
+
+  async deleteMedication(id: string): Promise<void> {
+    this.medications.delete(id);
   }
 
   // Tasks
@@ -164,6 +179,10 @@ export class MemStorage implements IStorage {
     const updated = { ...task, completed: !task.completed };
     this.tasks.set(id, updated);
     return updated;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    this.tasks.delete(id);
   }
 
   // Messages
@@ -273,6 +292,11 @@ export class DatabaseStorage implements IStorage {
     return appointment;
   }
 
+  async deleteAppointment(id: string): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    await this.db.delete(appointments).where(eq(appointments.id, id));
+  }
+
   async getMedications(userId: string): Promise<Medication[]> {
     if (!this.db) throw new Error("DB not initialized");
     return await this.db.select().from(medications).where(eq(medications.userId, userId));
@@ -294,6 +318,11 @@ export class DatabaseStorage implements IStorage {
     return medication;
   }
 
+  async deleteMedication(id: string): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    await this.db.delete(medications).where(eq(medications.id, id));
+  }
+
   async getTasks(userId: string): Promise<Task[]> {
     if (!this.db) throw new Error("DB not initialized");
     return await this.db.select().from(tasks).where(eq(tasks.userId, userId));
@@ -313,6 +342,11 @@ export class DatabaseStorage implements IStorage {
       .where(eq(tasks.id, id))
       .returning();
     return task;
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    if (!this.db) throw new Error("DB not initialized");
+    await this.db.delete(tasks).where(eq(tasks.id, id));
   }
 
   async getMessages(userId: string): Promise<Message[]> {
